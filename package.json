@@ -1,0 +1,12 @@
+{
+  "name": "rerun-app",
+  "version": "1.0.0",
+  "description": "RE/RΔN — personal running & rehab training app",
+  "private": true,
+  "scripts": {
+    "start": "serve -s . -l $PORT"
+  },
+  "dependencies": {
+    "serve": "^14.2.1"
+  }
+}

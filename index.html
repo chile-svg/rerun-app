@@ -1,0 +1,3296 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#f5f3ee" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="RE/RΔN" />
+  <title>RE/RΔN</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+
+  <!-- Tailwind via CDN (Play CDN — fine for personal/dev use) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- React 18 -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- Babel standalone for in-browser JSX transform -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+  <style>
+    html, body, #root {
+      height: 100%;
+      background: #f5f3ee;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+      margin: 0;
+    }
+    body {
+      font-family: '"Space Grotesk"', system-ui, sans-serif;
+      color: #0a0a0a;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+    button, .no-select { user-select: none; -webkit-user-select: none; }
+
+    /* Loading splash while Babel compiles — Bandit themed */
+    #boot {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 18px; background: #f5f3ee; color: #0a0a0a;
+      font-family: system-ui, sans-serif;
+    }
+    #boot .wordmark { width: 220px; height: auto; }
+    #boot .label {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase;
+      color: rgba(10,10,10,0.5);
+    }
+    #boot .barwrap {
+      width: 200px; height: 3px; background: rgba(10,10,10,0.1); position: relative; overflow: hidden;
+    }
+    #boot .bar {
+      position: absolute; top: 0; bottom: 0; width: 40%; background: #0a0a0a;
+      animation: bootslide 1.2s ease-in-out infinite;
+    }
+    @keyframes bootslide {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(350%); }
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div id="boot">
+      <svg class="wordmark" viewBox="0 0 525 130" xmlns="http://www.w3.org/2000/svg" aria-label="RE/RΔN" role="img">
+        <g transform="skewX(-9)" fill="#0a0a0a">
+          <rect x="20" y="10" width="22" height="100"/>
+          <rect x="20" y="10" width="70" height="22"/>
+          <rect x="20" y="54" width="70" height="22"/>
+          <rect x="68" y="10" width="22" height="66"/>
+          <polygon points="68,76 90,76 100,110 78,110"/>
+          <rect x="106" y="10" width="22" height="100"/>
+          <rect x="106" y="10" width="72" height="22"/>
+          <rect x="106" y="54" width="60" height="22"/>
+          <rect x="106" y="88" width="72" height="22"/>
+        </g>
+        <polygon points="222,10 250,10 200,110 172,110" fill="#c8202b"/>
+        <g transform="skewX(-9)" fill="#0a0a0a">
+          <rect x="265" y="10" width="22" height="100"/>
+          <rect x="265" y="10" width="70" height="22"/>
+          <rect x="265" y="54" width="70" height="22"/>
+          <rect x="313" y="10" width="22" height="66"/>
+          <polygon points="313,76 335,76 345,110 323,110"/>
+          <polygon points="395,6 433,112 357,112"/>
+          <rect x="447" y="10" width="22" height="100"/>
+          <rect x="495" y="10" width="22" height="100"/>
+          <polygon points="447,10 469,10 517,110 495,110"/>
+        </g>
+      </svg>
+      <div class="label">— LOADING —</div>
+      <div class="barwrap"><div class="bar"></div></div>
+    </div>
+  </div>
+
+  <!-- ====================== ICONS (inline SVG) ====================== -->
+  <!-- Tiny subset of lucide-react drawn as inline SVG paths.
+       Source: https://lucide.dev (ISC license). Each path is the exact d= from the icon. -->
+  <script>
+    window.__ICONS__ = {
+      Calendar: '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+      CheckCircle2: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+      Circle: '<circle cx="12" cy="12" r="10"/>',
+      ChevronLeft: '<path d="m15 18-6-6 6-6"/>',
+      ChevronRight: '<path d="m9 18 6-6-6-6"/>',
+      ChevronDown: '<path d="m6 9 6 6 6-6"/>',
+      Play: '<polygon points="5 3 19 12 5 21 5 3"/>',
+      Pause: '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>',
+      Edit3: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+      Plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+      Trash2: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>',
+      Download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+      Upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+      X: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+      Save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+      Search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+      Activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+      Dumbbell: '<path d="M14.4 14.4 9.6 9.6"/><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z"/><path d="m21.5 21.5-1.4-1.4"/><path d="M3.9 3.9 2.5 2.5"/><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z"/>',
+      Target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+      Clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+      TrendingUp: '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
+      Footprints: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path d="M16 17h4"/><path d="M4 13h4"/>',
+      FileSpreadsheet: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M14 13h2"/><path d="M8 17h2"/><path d="M14 17h2"/>',
+      FileJson: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M10 12a1 1 0 0 0-1 1v1a1 1 0 0 1-1 1 1 1 0 0 1 1 1v1a1 1 0 0 0 1 1"/><path d="M14 18a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1 1 1 0 0 1-1-1v-1a1 1 0 0 0-1-1"/>',
+      Settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+      Cloud: '<path d="M17.5 19a4.5 4.5 0 1 0 0-9h-1.8A7 7 0 1 0 4 14.9"/>',
+      CloudOff: '<path d="m2 2 20 20"/><path d="M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193"/><path d="M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07"/>',
+      Sparkles: '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
+      RefreshCw: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/>',
+      LogIn: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>',
+      LogOut: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
+      SkipForward: '<polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>',
+      SkipBack: '<polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/>',
+      Volume2: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>',
+      VolumeX: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/>',
+    };
+  </script>
+
+  <!-- ====================== PREAMBLE: stubs for services ====================== -->
+  <script type="text/babel" data-type="module">
+    const { useState, useMemo, useRef, useEffect } = React;
+
+    // ----- Inline Icon component using window.__ICONS__ paths -----
+    function Icon({ name, size = 16, className = '', fill, fillOpacity, strokeWidth = 2, style, ...rest }) {
+      const path = window.__ICONS__[name];
+      if (!path) return React.createElement('span', { style: { display: 'inline-block', width: size, height: size } });
+      const computedStyle = style || {};
+      return React.createElement('svg', {
+        xmlns: 'http://www.w3.org/2000/svg',
+        width: size,
+        height: size,
+        viewBox: '0 0 24 24',
+        fill: fill || 'none',
+        fillOpacity,
+        stroke: 'currentColor',
+        strokeWidth,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+        className,
+        style: computedStyle,
+        ...rest,
+        dangerouslySetInnerHTML: { __html: path },
+      });
+    }
+
+    // ----- Inline localStorage persistence -----
+    const PLAN_KEY = 'run_plan_v1';
+    const META_KEY = 'run_plan_meta_v1';
+    async function localLoadPlan() {
+      try {
+        const raw = localStorage.getItem(PLAN_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        console.error('load failed', e);
+        return null;
+      }
+    }
+    async function localSavePlan(plan) {
+      localStorage.setItem(PLAN_KEY, JSON.stringify(plan));
+      const meta = JSON.parse(localStorage.getItem(META_KEY) || '{}');
+      meta.lastLocalSave = new Date().toISOString();
+      localStorage.setItem(META_KEY, JSON.stringify(meta));
+    }
+    async function getMeta() {
+      try { return JSON.parse(localStorage.getItem(META_KEY) || '{}'); }
+      catch { return {}; }
+    }
+    async function driveIsSignedIn() { return false; }
+
+    // ----- Fallback workout-script builder (offline coach) -----
+    // Inlined copy of buildFallbackScript for unit testing without Capacitor imports.
+// Keep in sync with /home/claude/run-plan-mobile/src/services/coach.js
+
+function buildFallbackScript(session, exercises, restSeconds) {
+  const steps = [];
+  let totalSec = 0;
+  let stepId = 0;
+  const nextId = () => `s${++stepId}`;
+
+  steps.push({
+    id: nextId(),
+    kind: 'cue',
+    label: 'Get ready',
+    voiceLine: `Starting ${session.title}. ${exercises.length} exercises today.`,
+    durationSec: 5,
+  });
+  totalSec += 5;
+
+  exercises.forEach((ex, exIdx) => {
+    const sets = parseInt(ex.sets) || 1;
+    const reps = ex.reps;
+    const isHold = typeof reps === 'string' && /\d+\s*s/i.test(reps);
+    const holdSec = isHold ? parseInt(reps) : null;
+
+    for (let setNum = 1; setNum <= sets; setNum++) {
+      steps.push({
+        id: nextId(),
+        kind: 'transition',
+        label: `${ex.name}`,
+        voiceLine: sets > 1
+          ? `${ex.name}, set ${setNum} of ${sets}.`
+          : `${ex.name}.`,
+        durationSec: 4,
+      });
+      totalSec += 4;
+
+      if (holdSec) {
+        steps.push({
+          id: nextId(),
+          kind: 'exercise',
+          label: ex.name,
+          voiceLine: `Hold for ${holdSec} seconds.`,
+          durationSec: holdSec,
+          sets,
+          currentSet: setNum,
+        });
+        totalSec += holdSec;
+      } else {
+        const repCount = parseInt(reps) || 10;
+        const dur = Math.max(20, repCount * 3);
+        steps.push({
+          id: nextId(),
+          kind: 'exercise',
+          label: ex.name,
+          voiceLine: `${repCount} reps, controlled tempo.`,
+          targetReps: repCount,
+          durationSec: dur,
+          sets,
+          currentSet: setNum,
+        });
+        totalSec += dur;
+      }
+
+      const isLastSet = setNum === sets;
+      const isLastExercise = exIdx === exercises.length - 1;
+      if (!(isLastSet && isLastExercise)) {
+        const rest = isLastSet ? Math.round(restSeconds * 1.2) : restSeconds;
+        steps.push({
+          id: nextId(),
+          kind: 'rest',
+          label: 'Rest',
+          voiceLine: `Rest ${rest} seconds.`,
+          durationSec: rest,
+        });
+        totalSec += rest;
+      }
+    }
+  });
+
+  steps.push({
+    id: nextId(),
+    kind: 'cue',
+    label: 'Done',
+    voiceLine: `Session complete. Nice work.`,
+    durationSec: 3,
+  });
+  totalSec += 3;
+
+  return {
+    title: session.title,
+    estimatedDurationSec: totalSec,
+    steps,
+  };
+}
+
+
+    // ----- WorkoutPlayer component -----
+    // src/components/WorkoutPlayer.jsx
+//
+// Plays a generated workout script as a follow-along experience.
+//
+// Features:
+//   - Big timer for current step (rest / exercise / hold)
+//   - Auto-advance to next step when timer hits zero
+//   - Pause / resume / skip / back
+//   - Optional TTS using the Web Speech API (works offline on Android WebView)
+//   - Wake-lock if available so the screen doesn't sleep mid-set
+//
+// The script schema is defined in services/coach.js.
+
+
+function WorkoutPlayer({ script, onClose }) {
+  const [stepIdx, setStepIdx] = useState(0);
+  const [secondsLeft, setSecondsLeft] = useState(script.steps[0]?.durationSec ?? 0);
+  const [paused, setPaused] = useState(true);
+  const [muted, setMuted] = useState(false);
+  const wakeLockRef = useRef(null);
+  const intervalRef = useRef(null);
+
+  const step = script.steps[stepIdx];
+  const isLast = stepIdx >= script.steps.length - 1;
+
+  // Acquire wake lock when playing
+  useEffect(() => {
+    let cancelled = false;
+    async function acquire() {
+      if (paused) {
+        if (wakeLockRef.current) {
+          try { await wakeLockRef.current.release(); } catch {}
+          wakeLockRef.current = null;
+        }
+        return;
+      }
+      if ('wakeLock' in navigator && !wakeLockRef.current) {
+        try {
+          const lock = await navigator.wakeLock.request('screen');
+          if (!cancelled) wakeLockRef.current = lock;
+        } catch {/* not supported, fine */}
+      }
+    }
+    acquire();
+    return () => {
+      cancelled = true;
+      if (wakeLockRef.current) {
+        try { wakeLockRef.current.release(); } catch {}
+        wakeLockRef.current = null;
+      }
+    };
+  }, [paused]);
+
+  // Speak when entering a new step
+  useEffect(() => {
+    if (!step) return;
+    if (!muted && step.voiceLine && 'speechSynthesis' in window) {
+      const utter = new SpeechSynthesisUtterance(step.voiceLine);
+      utter.rate = 1.0;
+      utter.pitch = 1.0;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utter);
+    }
+    // Reset timer to the step's full duration
+    setSecondsLeft(step.durationSec ?? 0);
+  }, [stepIdx, muted]); // intentional — re-trigger only on step change or mute toggle
+
+  // Timer tick
+  useEffect(() => {
+    if (paused || !step?.durationSec) {
+      clearInterval(intervalRef.current);
+      return;
+    }
+    intervalRef.current = setInterval(() => {
+      setSecondsLeft(s => {
+        if (s <= 1) {
+          // Advance
+          if (!isLast) {
+            setStepIdx(i => i + 1);
+            return 0;
+          } else {
+            setPaused(true);
+            return 0;
+          }
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(intervalRef.current);
+  }, [paused, stepIdx, isLast, step]);
+
+  // Cleanup TTS on unmount
+  useEffect(() => () => {
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  }, []);
+
+  if (!step) return null;
+
+  const total = script.steps.length;
+  const progress = ((stepIdx + (step.durationSec ? (step.durationSec - secondsLeft) / step.durationSec : 0)) / total) * 100;
+
+  const stepColor = {
+    rest: '#7a8a8d',         // steel grey
+    exercise: '#0a0a0a',     // asphalt
+    transition: '#1c2942',   // ink blue
+    cue: '#c8202b',          // bandit red
+  }[step.kind] || '#0a0a0a';
+
+  return (
+    <div className="fixed inset-0 z-50 bg-[#f5f3ee] text-[#0a0a0a] flex flex-col">
+      {/* Top bar */}
+      <div className="flex items-stretch border-b-2 border-[#0a0a0a] bg-[#0a0a0a] text-[#f5f3ee]">
+        <button onClick={onClose} className="px-4 py-3 hover:bg-[#c8202b] active:scale-95 transition border-r-2 border-[#f5f3ee]/20">
+          <Icon name="X" size={18} />
+        </button>
+        <div className="flex-1 px-4 py-3 text-center min-w-0">
+          <p className="text-[9px] font-mono uppercase tracking-[0.3em] text-[#f5f3ee]/60 truncate">{script.title}</p>
+          <p className="text-[11px] font-bold tabular-nums tracking-[0.2em] mt-0.5">{String(stepIdx + 1).padStart(2,'0')} / {String(total).padStart(2,'0')}</p>
+        </div>
+        <button onClick={() => setMuted(m => !m)} className="px-4 py-3 hover:bg-[#c8202b] active:scale-95 transition border-l-2 border-[#f5f3ee]/20">
+          {muted ? <Icon name="VolumeX" size={18} /> : <Icon name="Volume2" size={18} />}
+        </button>
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-[3px] bg-[#0a0a0a]/10 border-b-2 border-[#0a0a0a]">
+        <div
+          className="h-full transition-[width] duration-1000 ease-linear"
+          style={{ width: `${progress}%`, background: stepColor }}
+        />
+      </div>
+
+      {/* Main content — full bleed colored block */}
+      <div
+        className="flex-1 flex flex-col items-center justify-center px-6 text-center relative overflow-hidden"
+        style={{
+          background: step.kind === 'rest' ? '#e8e4d9' : (step.kind === 'cue' || step.kind === 'transition') ? stepColor : '#f5f3ee',
+          color: (step.kind === 'cue' || step.kind === 'transition') ? '#f5f3ee' : '#0a0a0a',
+        }}
+      >
+        {/* Kind tag */}
+        <div className="absolute top-4 left-4 right-4 flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.3em]">
+          <span className="font-bold">— {step.kind} —</span>
+          {step.sets && step.currentSet && (
+            <span className="opacity-60">SET {String(step.currentSet).padStart(2,'0')} / {String(step.sets).padStart(2,'0')}</span>
+          )}
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center w-full">
+          <h2
+            className="text-5xl leading-[0.85] mb-8 max-w-full break-words uppercase"
+            style={{ fontFamily: '"Anton", sans-serif', letterSpacing: '0.01em' }}
+          >
+            {step.label}
+          </h2>
+
+          {step.durationSec > 0 ? (
+            <div
+              className="text-[180px] leading-[0.8] tabular-nums font-bold"
+              style={{ fontFamily: '"Anton", sans-serif' }}
+            >
+              {String(secondsLeft).padStart(2,'0')}
+            </div>
+          ) : null}
+
+          {step.targetReps && (
+            <p className="text-2xl font-bold mt-2" style={{ fontFamily: '"Anton", sans-serif', letterSpacing: '0.05em' }}>
+              {step.targetReps} REPS
+            </p>
+          )}
+
+          {step.formNotes && step.formNotes.length > 0 && (
+            <div className="mt-8 max-w-sm space-y-1.5 border-t-2 border-current pt-4 opacity-80">
+              {step.formNotes.map((note, i) => (
+                <p key={i} className="text-sm font-mono">→ {note}</p>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className="border-t-2 border-[#0a0a0a] bg-[#f5f3ee] flex items-stretch">
+        <button
+          onClick={() => setStepIdx(i => Math.max(0, i - 1))}
+          disabled={stepIdx === 0}
+          className="flex-1 py-5 hover:bg-[#0a0a0a]/5 active:scale-95 transition disabled:opacity-30 flex items-center justify-center gap-2 border-r-2 border-[#0a0a0a]"
+        >
+          <Icon name="SkipBack" size={18} />
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em]">PREV</span>
+        </button>
+        <button
+          onClick={() => setPaused(p => !p)}
+          className="flex-[2] py-5 active:scale-95 transition flex items-center justify-center gap-2"
+          style={{ background: stepColor, color: '#f5f3ee' }}
+        >
+          {paused
+            ? <><Icon name="Play" size={20} fill="currentColor" /><span className="text-sm font-bold uppercase tracking-[0.25em]">START</span></>
+            : <><Icon name="Pause" size={20} fill="currentColor" /><span className="text-sm font-bold uppercase tracking-[0.25em]">PAUSE</span></>
+          }
+        </button>
+        <button
+          onClick={() => !isLast && setStepIdx(i => i + 1)}
+          disabled={isLast}
+          className="flex-1 py-5 hover:bg-[#0a0a0a]/5 active:scale-95 transition disabled:opacity-30 flex items-center justify-center gap-2 border-l-2 border-[#0a0a0a]"
+        >
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em]">NEXT</span>
+          <Icon name="SkipForward" size={18} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+    // ====================== APP ======================
+    
+// ---------- INITIAL TRAINING PLAN DATA ----------
+const initialPlan = {
+  meta: {
+    title: 'RUN PLAN',
+    period: 'Apr 26 – Jun 21, 2026',
+    goalRaces: ['May HM (late May)', 'Copenhagen HM (Sep 20)', 'NYC Marathon (Nov 1)'],
+    races: [
+      { name: 'May Half Marathon', date: '2026-05-30', emoji: '🏃' },
+      { name: 'Copenhagen Half', date: '2026-09-20', emoji: '🇩🇰' },
+      { name: 'NYC Marathon', date: '2026-11-01', emoji: '🗽' },
+    ],
+    paceZones: [
+      { zone: 'Z1', name: 'Recovery', range: '6:20 – 7:05', color: '#3b82f6' },
+      { zone: 'Z2', name: 'Easy',     range: '5:35 – 6:20', color: '#10b981' },
+      { zone: 'Z3', name: 'Steady',   range: '5:05 – 5:35', color: '#06b6d4' },
+      { zone: 'Z4', name: 'Threshold',range: '4:30 – 5:05', color: '#f59e0b' },
+      { zone: 'Z5', name: '5K Pace',  range: '3:55 – 4:15', color: '#ef4444' },
+      { zone: 'Z6', name: 'VO2 Max',  range: '3:35 – 3:55', color: '#eab308' },
+    ],
+    shoes: ['Eliot Runner', 'Evo SL Exo', 'Evo SL', 'ATR', 'Race choice'],
+  },
+  days: buildDays(),
+};
+
+function buildDays() {
+  // Each day: { date 'YYYY-MM-DD', label, dayIndex, type, run, strength, exercises, shoe, notes, completed, feedback }
+  const d = (date, data) => ({ date, completed: false, feedback: '', loggedExtras: [], ...data });
+
+  return [
+    // WEEK 1
+    d('2026-04-26', { type: 'easy', title: 'Easy Run', run: { distance: '8 km', zone: 'Z2', pace: '5:35–6:20' }, exercises: [
+      { name: 'Tib post raises', sets: 3, reps: 12 },
+      { name: 'Soleus raises', sets: 3, reps: 12 },
+      { name: 'Short foot', sets: 3, reps: 10 },
+    ], shoe: 'Eliot Runner', tag: 'Post-Run' }),
+    d('2026-04-27', { type: 'strength', title: 'Strength (Lower Chain)', strength: { duration: '60 min' }, exercises: [
+      { name: 'SL RDL', sets: 3, reps: 8 },
+      { name: 'Split squat', sets: 3, reps: 8 },
+      { name: 'Step-downs', sets: 3, reps: 8 },
+      { name: 'Hip airplanes', sets: 3, reps: 6 },
+      { name: 'Core 3 series' },
+    ], shoe: '—' }),
+    d('2026-04-28', { type: 'easy', title: 'Easy + Strides', run: { distance: '10 km total', detail: '8 km Z2 + 4×20s strides (Z5, full recovery)', zone: 'Z2/Z5' }, exercises: [
+      { name: 'Band inversion', sets: 3, reps: 15 },
+      { name: 'Balance', sets: 3, reps: '30s' },
+      { name: 'Arch lifts', sets: 3, reps: 8 },
+    ], shoe: 'Eliot Runner', tag: 'Post-Run' }),
+    d('2026-04-29', { type: 'recovery', title: 'Recovery', run: { distance: '6 km', zone: 'Z1–Z2', pace: '6:20–7:05' }, exercises: [
+      { name: 'Mobility (ankles, hips, calves, foam roll)', sets: 1, reps: '30–40 min' },
+    ], shoe: 'Eliot Runner' }),
+    d('2026-04-30', { type: 'progression', title: 'Progression Run', run: { distance: '12 km', detail: '10 km Z2, last 2 km Z3', zone: 'Z2→Z3', pace: '5:05–5:20' }, exercises: [
+      { name: 'Tib post raises', sets: 3, reps: 12 },
+      { name: 'Calf eccentrics', sets: 3, reps: 10 },
+    ], shoe: 'Evo SL Exo', tag: 'Post-Run' }),
+    d('2026-05-01', { type: 'strength', title: 'Strength (Tendon Focus)', strength: { duration: '60 min' }, exercises: [
+      { name: 'Calf eccentrics', sets: 3, reps: 10 },
+      { name: 'Tib post heel raises', sets: 3, reps: 10 },
+      { name: 'Glute med walks', sets: 3, reps: 15 },
+      { name: 'Core 3 series' },
+      { name: 'Optional easy jog', sets: 1, reps: '4–5 km Z1–Z2' },
+    ], shoe: 'Eliot Runner' }),
+    d('2026-05-02', { type: 'long', title: 'Long Run', run: { distance: '16 km', zone: 'Z2', pace: '5:35–6:20' }, exercises: [
+      { name: 'Light stretch' },
+      { name: 'Foam roll' },
+      { name: 'Hydrate & refuel' },
+    ], shoe: 'Evo SL Exo' }),
+
+    // WEEK 2
+    d('2026-05-03', { type: 'easy', title: 'Easy Run', run: { distance: '8 km', zone: 'Z2', pace: '5:35–6:20' }, exercises: [
+      { name: 'Short foot', sets: 3, reps: 10 },
+      { name: 'Tib post band', sets: 3, reps: 15 },
+      { name: 'Balance', sets: 3, reps: '30s' },
+    ], shoe: 'Eliot Runner', tag: 'Post-Run' }),
+    d('2026-05-04', { type: 'strength', title: 'Strength (Full Body)', strength: { duration: '60 min' }, exercises: [
+      { name: 'Squat or Trap bar DL', sets: 3, reps: 6 },
+      { name: 'Step-ups', sets: 3, reps: 8 },
+      { name: 'Nordic curl', sets: 3, reps: 6 },
+      { name: 'Hip thrust', sets: 3, reps: 8 },
+      { name: 'Core 3 series' },
+    ], shoe: '—' }),
+    d('2026-05-05', { type: 'threshold', title: 'Threshold Intervals', run: { distance: '10 km total', detail: '2 km warm up Z2 · 3×5 min Z4 (4:30–5:05) w/ 2 min jog rec · 2 km cool down Z2', zone: 'Z4' }, exercises: [
+      { name: 'Calf raises', sets: 3, reps: 12 },
+      { name: 'Mobility', sets: 1, reps: '10–15 min' },
+    ], shoe: 'Evo SL', tag: 'Post-Run' }),
+    d('2026-05-06', { type: 'recovery', title: 'Recovery Run', run: { distance: '6 km', zone: 'Z1–Z2', pace: '6:20–7:05' }, exercises: [
+      { name: 'Mobility', sets: 1, reps: '20–30 min' },
+    ], shoe: 'Eliot Runner' }),
+    d('2026-05-07', { type: 'easy', title: 'Easy + Strides', run: { distance: '10 km total', detail: '8 km Z2 + 5×20s strides (Z5)', zone: 'Z2/Z5' }, exercises: [
+      { name: 'Band inversion', sets: 3, reps: 15 },
+      { name: 'Arch lifts', sets: 3, reps: 8 },
+    ], shoe: 'Evo SL', tag: 'Post-Run' }),
+    d('2026-05-08', { type: 'strength', title: 'Strength (Power & Stability)', strength: { duration: '60 min' }, exercises: [
+      { name: 'Bulgarian split squat', sets: 3, reps: 8 },
+      { name: 'RDL', sets: 3, reps: 8 },
+      { name: 'Lateral lunge', sets: 3, reps: 8 },
+      { name: 'Single leg calf', sets: 3, reps: 10 },
+      { name: 'Core 3 series' },
+      { name: 'Optional easy jog', sets: 1, reps: '4 km Z1–Z2' },
+    ], shoe: 'Eliot Runner' }),
+    d('2026-05-09', { type: 'long', title: 'Long Run', run: { distance: '18 km', zone: 'Z2 steady', pace: '5:35–6:20' }, exercises: [
+      { name: 'Light stretch' }, { name: 'Foam roll' },
+    ], shoe: 'Evo SL Exo' }),
+
+    // WEEK 3
+    d('2026-05-10', { type: 'easy', title: 'Easy Run', run: { distance: '8–10 km', zone: 'Z2', pace: '5:35–6:20' }, exercises: [
+      { name: 'Tib post raises', sets: 3, reps: 12 },
+      { name: 'Soleus raises', sets: 3, reps: 12 },
+      { name: 'Short foot', sets: 3, reps: 10 },
+    ], shoe: 'Eliot Runner', tag: 'Post-Run' }),
+    d('2026-05-11', { type: 'strength', title: 'Strength (Lower Chain)', strength: { duration: '60 min' }, exercises: [
+      { name: 'Deadlift', sets: 3, reps: 5 },
+      { name: 'Step-downs', sets: 3, reps: 8 },
+      { name: 'Hip airplanes', sets: 3, reps: 6 },
+      { name: 'Core 3 series' },
+    ], shoe: '—' }),
+    d('2026-05-12', { type: 'tempo', title: 'Tempo Run', run: { distance: '12 km total', detail: '2 km warm up Z2 · 6 km Z3 (5:05–5:25) · 2 km cool down Z2', zone: 'Z3' }, exercises: [
+      { name: 'Calf eccentrics', sets: 3, reps: 10 },
+      { name: 'Mobility', sets: 1, reps: '10–15 min' },
+    ], shoe: 'Evo SL Exo', tag: 'Post-Run' }),
+    d('2026-05-13', { type: 'recovery', title: 'Recovery', run: { distance: '6 km', zone: 'Z1', pace: '6:20–7:05' }, exercises: [
+      { name: 'Mobility', sets: 1, reps: '20–30 min' },
+    ], shoe: 'Eliot Runner' }),
+    d('2026-05-14', { type: 'easy', title: 'Easy Run', run: { distance: '10 km', zone: 'Z2', pace: '5:35–6:20' }, exercises: [
+      { name: 'Band inversion', sets: 3, reps: 15 },
+      { name: 'Balance', sets: 3, reps: '30s' },
+    ], shoe: 'Evo SL', tag: 'Post-Run' }),
+    d('2026-05-15', { type: 'strength', title: 'Strength (Tendon Focus)', strength: { duration: '60 min' }, exercises: [
+      { name: 'Calf eccentrics', sets: 3, reps: 10 },
+      { name: 'Tib post heel raises', sets: 3, reps: 12 },
+      { name: 'Glute med walks', sets: 3, reps: 15 },
+      { name: 'Core 3 series' },
+      { name: 'Optional jog', sets: 1, reps: '4–5 km Z1–Z2' },
+    ], shoe: 'Eliot Runner' }),
+    d('2026-05-16', { type: 'long', title: 'Long Run', run: { distance: '20 km', detail: 'last 3 km Z3 (5:05–5:25)', zone: 'Z2→Z3', pace: '5:35–6:20' }, exercises: [
+      { name: 'Light stretch' }, { name: 'Foam roll' },
+    ], shoe: 'Evo SL Exo' }),
+
+    // WEEK 4
+    d('2026-05-17', { type: 'easy', title: 'Easy Run', run: { distance: '8–10 km', zone: 'Z2', pace: '5:35–6:20' }, exercises: [
+      { name: 'Short foot', sets: 3, reps: 10 },
+      { name: 'Tib post band', sets: 3, reps: 15 },
+    ], shoe: 'Eliot Runner', tag: 'Post-Run' }),
+    d('2026-05-18', { type: 'strength', title: 'Strength (Full Body)', strength: { duration: '60 min' }, exercises: [
+      { name: 'Squat', sets: 3, reps: 6 },
+      { name: 'RDL', sets: 3, reps: 8 },
+      { name: 'Split squat', sets: 3, reps: 8 },
+      { name: 'Core 3 series' },
+    ], shoe: '—' }),
+    d('2026-05-19', { type: 'vo2', title: 'VO2 Intervals', run: { distance: '10–11 km total', detail: '2 km warm up Z2 · 5×800m Z5 (3:55–4:15) w/ 400m jog rec · 2 km cool down Z2', zone: 'Z5' }, exercises: [
+      { name: 'Calf raises', sets: 3, reps: 12 },
+      { name: 'Mobility', sets: 1, reps: '10–15 min' },
+    ], shoe: 'Evo SL', tag: 'Post-Run' }),
+    d('2026-05-20', { type: 'recovery', title: 'Recovery Run', run: { distance: '6 km', zone: 'Z1–Z2', pace: '6:20–7:05' }, exercises: [
+      { name: 'Mobility', sets: 1, reps: '20–30 min' },
+    ], shoe: 'Eliot Runner' }),
+    d('2026-05-21', { type: 'progression', title: 'Progression Run', run: { distance: '13 km', detail: '10 km Z2, last 3 km Z3 (5:05–5:25)', zone: 'Z2→Z3' }, exercises: [
+      { name: 'Tib post raises', sets: 3, reps: 12 },
+    ], shoe: 'Evo SL Exo', tag: 'Post-Run' }),
+    d('2026-05-22', { type: 'strength', title: 'Strength (Power & Stability)', strength: { duration: '60 min' }, exercises: [
+      { name: 'Bulgarian split squat', sets: 3, reps: 8 },
+      { name: 'Hip thrust', sets: 3, reps: 8 },
+      { name: 'Calf eccentrics', sets: 3, reps: 10 },
+      { name: 'Core 3 series' },
+      { name: 'Optional jog', sets: 1, reps: '4 km Z1–Z2' },
+    ], shoe: 'Eliot Runner' }),
+    d('2026-05-23', { type: 'long', title: 'Long Run', run: { distance: '22 km', detail: 'last 4 km Z3 (5:05–5:20)', zone: 'Z2→Z3', pace: '5:35–6:20' }, exercises: [
+      { name: 'Light stretch' }, { name: 'Foam roll' },
+    ], shoe: 'Evo SL Exo' }),
+
+    // WEEK 5 (Race week)
+    d('2026-05-24', { type: 'easy', title: 'Easy Run', run: { distance: '8 km', zone: 'Z2', pace: '5:35–6:20' }, exercises: [
+      { name: 'Short foot', sets: 3, reps: 10 },
+      { name: 'Tib post band', sets: 3, reps: 15 },
+    ], shoe: 'Eliot Runner', tag: 'Post-Run' }),
+    d('2026-05-25', { type: 'strength', title: 'Strength (Light)', strength: { duration: '45 min' }, exercises: [
+      { name: 'Full body circuit (moderate load)' },
+      { name: 'Mobility' },
+    ], shoe: '—' }),
+    d('2026-05-26', { type: 'sharpen', title: 'Sharpen', run: { distance: '8–9 km', detail: '2 km warm up · 3 km Z3 (5:05–5:25) · 2 km cool down · 4×20s strides', zone: 'Z3/Z5' }, exercises: [], shoe: 'Evo SL' }),
+    d('2026-05-27', { type: 'easy', title: 'Easy', run: { distance: '6 km', zone: 'Z1–Z2', pace: '6:20–7:05' }, exercises: [
+      { name: 'Mobility', sets: 1, reps: '20 min' },
+    ], shoe: 'Eliot Runner', tag: 'Post-Run' }),
+    d('2026-05-28', { type: 'shakeout', title: 'Shakeout', run: { distance: '5 km', zone: 'Z1–Z2', detail: 'w/ 4×20s strides' }, exercises: [], shoe: 'Evo SL' }),
+    d('2026-05-29', { type: 'rest', title: 'Rest / Travel', exercises: [
+      { name: 'Walk + mobility' },
+      { name: 'Light stretch' },
+    ], shoe: '—' }),
+    d('2026-05-30', { type: 'race', title: 'HALF MARATHON RACE DAY', run: { distance: '21.1 km', detail: 'Pace goal: 4:15–4:20 /km. Enjoy!', zone: 'Race' }, exercises: [], shoe: 'Race choice' }),
+
+    // WEEK 6
+    d('2026-05-31', { type: 'recovery', title: 'Recovery Run', run: { distance: '6–8 km', zone: 'Z1–Z2', pace: '6:20–7:05' }, exercises: [
+      { name: 'Mobility' },
+    ], shoe: 'Eliot Runner', tag: 'Post-Run' }),
+    d('2026-06-01', { type: 'strength', title: 'Strength (Rebuild)', strength: { duration: '50 min' }, exercises: [
+      { name: 'Lower body focus' },
+      { name: 'Core + mobility' },
+    ], shoe: '—' }),
+    d('2026-06-02', { type: 'easy', title: 'Easy Run', run: { distance: '8 km', zone: 'Z2', pace: '5:35–6:20' }, exercises: [], shoe: 'Evo SL' }),
+    d('2026-06-03', { type: 'recovery', title: 'Recovery', run: { distance: '6 km', zone: 'Z1–Z2' }, exercises: [{ name: 'Mobility' }], shoe: 'Eliot Runner' }),
+    d('2026-06-04', { type: 'tempo', title: 'Tempo Intro', run: { distance: '9–10 km', detail: '2 km warm up · 4 km Z3 (5:05–5:20) · 2 km cool down', zone: 'Z3' }, exercises: [], shoe: 'Evo SL' }),
+    d('2026-06-05', { type: 'strength', title: 'Strength (Light)', strength: { duration: '50 min' }, exercises: [
+      { name: 'Full body circuit' },
+      { name: 'Mobility' },
+    ], shoe: '—' }),
+    d('2026-06-06', { type: 'long', title: 'Long Run', run: { distance: '18 km', zone: 'Z2', pace: '5:35–6:20' }, exercises: [], shoe: 'Evo SL Exo' }),
+  ];
+}
+
+// ---------- TYPE STYLING ----------
+const typeStyles = {
+  easy:        { label: 'Easy',       bg: 'bg-[#e8e4d9]', border: 'border-[#0a0a0a]',   text: 'text-[#0a0a0a]', accent: '#0a0a0a', icon: 'Footprints' },
+  long:        { label: 'Long',       bg: 'bg-[#1c2942]', border: 'border-[#1c2942]',   text: 'text-[#f5f3ee]', accent: '#1c2942', icon: 'TrendingUp' },
+  strength:    { label: 'Strength',   bg: 'bg-[#4a3528]', border: 'border-[#4a3528]',   text: 'text-[#f5f3ee]', accent: '#4a3528', icon: 'Dumbbell' },
+  threshold:   { label: 'Threshold',  bg: 'bg-[#c8202b]', border: 'border-[#c8202b]',   text: 'text-[#f5f3ee]', accent: '#c8202b', icon: 'Target' },
+  vo2:         { label: 'VO2 Max',    bg: 'bg-[#c8202b]', border: 'border-[#c8202b]',   text: 'text-[#f5f3ee]', accent: '#c8202b', icon: 'Activity' },
+  tempo:       { label: 'Tempo',      bg: 'bg-[#c8202b]', border: 'border-[#c8202b]',   text: 'text-[#f5f3ee]', accent: '#c8202b', icon: 'TrendingUp' },
+  progression: { label: 'Progression',bg: 'bg-[#7a8a8d]', border: 'border-[#7a8a8d]',   text: 'text-[#f5f3ee]', accent: '#7a8a8d', icon: 'TrendingUp' },
+  recovery:    { label: 'Recovery',   bg: 'bg-[#e8e4d9]', border: 'border-[#0a0a0a]/40',text: 'text-[#0a0a0a]', accent: '#7a8a8d', icon: 'Footprints' },
+  sharpen:     { label: 'Sharpen',    bg: 'bg-[#1c2942]', border: 'border-[#1c2942]',   text: 'text-[#f5f3ee]', accent: '#1c2942', icon: 'Target' },
+  shakeout:    { label: 'Shakeout',   bg: 'bg-[#e8e4d9]', border: 'border-[#0a0a0a]/40',text: 'text-[#0a0a0a]', accent: '#7a8a8d', icon: 'Footprints' },
+  rest:        { label: 'Rest',       bg: 'bg-[#f5f3ee]', border: 'border-[#0a0a0a]/30 border-dashed', text: 'text-[#0a0a0a]/60', accent: '#7a8a8d', icon: 'Clock' },
+  race:        { label: 'RACE DAY',   bg: 'bg-[#0a0a0a]', border: 'border-[#c8202b]',   text: 'text-[#f5f3ee]', accent: '#c8202b', icon: 'Target' },
+  custom:      { label: 'Logged',     bg: 'bg-[#e8e4d9]', border: 'border-[#0a0a0a]/40',text: 'text-[#0a0a0a]', accent: '#0a0a0a', icon: 'Plus' },
+};
+
+const ts = (t) => typeStyles[t] || typeStyles.custom;
+
+// ---------- HELPERS ----------
+const fmtDate = (s) => {
+  const [y,m,d] = s.split('-').map(Number);
+  return new Date(y, m-1, d);
+};
+const dayName = (s) => fmtDate(s).toLocaleDateString('en-US', { weekday: 'short' });
+const dayNumber = (s) => fmtDate(s).getDate();
+const monthName = (s) => fmtDate(s).toLocaleDateString('en-US', { month: 'short' });
+const isoToday = () => {
+  const t = new Date();
+  return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+};
+const startOfWeek = (s) => {
+  const d = fmtDate(s);
+  const day = d.getDay(); // 0=Sun
+  d.setDate(d.getDate() - day);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
+const addDays = (s, n) => {
+  const d = fmtDate(s);
+  d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
+
+// CSV parser — handles quoted fields, escaped quotes, embedded commas/newlines
+function parseCSV(text) {
+  const rows = []; let row = []; let field = ''; let inQuotes = false; let i = 0;
+  while (i < text.length) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i+1] === '"') { field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += c; i++; continue;
+    }
+    if (c === '"') { inQuotes = true; i++; continue; }
+    if (c === ',') { row.push(field); field = ''; i++; continue; }
+    if (c === '\r') { i++; continue; }
+    if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
+    field += c; i++;
+  }
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  if (rows.length && rows[rows.length-1].length === 1 && rows[rows.length-1][0] === '') rows.pop();
+  return rows;
+}
+
+function parseExercisesField(s) {
+  if (!s || !s.trim()) return [];
+  return s.split('|').map(part => {
+    const t = part.trim();
+    if (!t) return null;
+    const m = t.match(/^(.+?)\s+(\d+)\s*[×x]\s*(.+)$/);
+    if (m) return { name: m[1].trim(), sets: parseInt(m[2], 10), reps: m[3].trim() };
+    return { name: t };
+  }).filter(Boolean);
+}
+
+function csvRowToDay(headers, row, existing) {
+  const obj = {};
+  headers.forEach((h, i) => { obj[h] = (row[i] ?? '').trim(); });
+  if (!obj.date || !/^\d{4}-\d{2}-\d{2}$/.test(obj.date)) {
+    throw new Error(`Row missing valid date: ${obj.date || '(blank)'}`);
+  }
+  const base = existing || { date: obj.date, completed: false, feedback: '', loggedExtras: [] };
+  const day = {
+    ...base,
+    date: obj.date,
+    type: obj.type || base.type || 'easy',
+    title: obj.title || base.title || '',
+    shoe: obj.shoe || base.shoe || '',
+    tag: obj.tag || base.tag || '',
+    feedback: obj.feedback ?? base.feedback ?? '',
+    completed: obj.completed === 'YES' || obj.completed === 'true' || obj.completed === '1',
+  };
+  if (obj.run_distance || obj.run_zone || obj.run_pace || obj.run_detail) {
+    day.run = { distance: obj.run_distance || '', zone: obj.run_zone || '', pace: obj.run_pace || '', detail: obj.run_detail || '' };
+  } else { delete day.run; }
+  if (obj.strength_duration) day.strength = { duration: obj.strength_duration };
+  else delete day.strength;
+  day.exercises = parseExercisesField(obj.exercises);
+  if (obj.logged_extras && obj.logged_extras.trim()) {
+    const notes = obj.logged_extras.split('|').map(s => s.trim()).filter(Boolean);
+    day.loggedExtras = notes.map((note, idx) => ({
+      id: Date.now() + idx, note, kind: '', distance: '', duration: '',
+      when: new Date().toISOString(),
+    }));
+  } else {
+    day.loggedExtras = base.loggedExtras || [];
+  }
+  return day;
+}
+
+function csvToPlan(text, existingPlan) {
+  const rows = parseCSV(text);
+  if (rows.length < 2) throw new Error('CSV is empty or has no data rows.');
+  const headers = rows[0].map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
+  if (!headers.includes('date')) throw new Error('CSV missing required column: date');
+  const existingMap = {};
+  if (existingPlan?.days) existingPlan.days.forEach(d => { existingMap[d.date] = d; });
+  const dateIdx = headers.indexOf('date');
+  const days = rows.slice(1)
+    .filter(r => r[dateIdx]?.trim()) // drop blank rows
+    .map(row => csvRowToDay(headers, row, existingMap[row[dateIdx]?.trim()]));
+  return {
+    ...(existingPlan || { meta: { title: 'RUN PLAN', period: '', goalRaces: [], paceZones: [], shoes: [] } }),
+    days: days.sort((a, b) => a.date.localeCompare(b.date)),
+  };
+}
+
+function parseDistanceKm(s) {
+  if (!s) return 0;
+  const m = s.match(/(\d+(?:\.\d+)?)(?:\s*[–-]\s*(\d+(?:\.\d+)?))?\s*km/i);
+  if (!m) return 0;
+  return m[2] ? parseFloat(m[2]) : parseFloat(m[1]);
+}
+
+function weeklyVolume(days) {
+  let totalKm = 0, runs = 0, strength = 0, completed = 0;
+  days.forEach(d => {
+    if (d.run?.distance) { totalKm += parseDistanceKm(d.run.distance); runs++; }
+    if (d.strength) strength++;
+    if (d.completed) completed++;
+    (d.loggedExtras || []).forEach(x => {
+      if (x.distance) totalKm += parseDistanceKm(x.distance);
+    });
+  });
+  return { totalKm: Math.round(totalKm * 10) / 10, runs, strength, completed, total: days.length };
+}
+
+function daysUntil(targetIso, fromIso) {
+  const a = new Date(targetIso);
+  const b = new Date(fromIso);
+  return Math.round((a - b) / (1000 * 60 * 60 * 24));
+}
+
+// ---------- MAIN APP ----------
+function App() {
+  const [plan, setPlan] = useState(initialPlan);
+  const [view, setView] = useState('weekly'); // daily | weekly | monthly
+  const [cursor, setCursor] = useState('2026-04-26'); // current focus date
+  const [editing, setEditing] = useState(null); // { dateStr } currently editing
+  const [showImport, setShowImport] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [videoExercise, setVideoExercise] = useState(null);
+  const [logging, setLogging] = useState(null); // date being logged
+  const [showShoes, setShowShoes] = useState(false);
+  const [slideKey, setSlideKey] = useState(0); // forces re-render for slide animation
+  const [slideDir, setSlideDir] = useState(null); // 'left' | 'right' | null
+  const fileRef = useRef(null);
+  const touchRef = useRef(null);
+
+  // ---------- HYDRATION & PERSISTENCE ----------
+  const [hydrated, setHydrated] = useState(false);
+  const [showSync, setShowSync] = useState(false);
+  const [coachScript, setCoachScript] = useState(null); // active workout player
+  const [showViewMenu, setShowViewMenu] = useState(false);
+  const [coachLoading, setCoachLoading] = useState(false);
+  const [syncStatus, setSyncStatus] = useState({ syncing: false, signedIn: false, lastSync: null });
+
+  // Load saved plan on first mount. If none exists, the seeded initialPlan is kept
+  // and saved immediately so subsequent launches restore it.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const stored = await localLoadPlan();
+      if (!cancelled) {
+        if (stored && stored.days?.length) {
+          setPlan(stored);
+        } else {
+          await localSavePlan(initialPlan);
+        }
+        const meta = await getMeta();
+        const signedIn = await driveIsSignedIn();
+        setSyncStatus(s => ({ ...s, signedIn, lastSync: meta.lastDriveSync ?? null }));
+        setHydrated(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Auto-save on every plan change after hydration. We debounce slightly to
+  // collapse rapid edits (e.g. typing into the feedback textarea).
+  useEffect(() => {
+    if (!hydrated) return;
+    const t = setTimeout(() => { localSavePlan(plan).catch(console.error); }, 300);
+    return () => clearTimeout(t);
+  }, [plan, hydrated]);
+
+  // ---------- DRIVE SYNC ACTIONS ----------
+  const handleDriveSignIn = async () => {
+    alert('Drive sync is disabled in the standalone HTML build. Use the Capacitor Android build for Drive sync. Your data still persists in this browser via localStorage.');
+  };
+  const handleDriveSignOut = async () => {};
+  const handlePushToDrive = async () => {
+    alert('Drive sync is disabled in the standalone HTML build.');
+  };
+  const handlePullFromDrive = async () => {
+    alert('Drive sync is disabled in the standalone HTML build.');
+  };
+
+  // ---------- AI COACH ----------
+  const handleStartCoach = async (day) => {
+    setCoachLoading(true);
+    try {
+      // Standalone HTML: skip backend, use offline deterministic script
+      const exercises = (day.exercises || []).filter(e => e.name && e.name.trim());
+      const script = buildFallbackScript(day, exercises, 60);
+      setTimeout(() => { setCoachScript(script); setCoachLoading(false); }, 250);
+    } catch (err) {
+      alert('Could not generate workout: ' + err.message);
+      setCoachLoading(false);
+    }
+  };
+
+  const dayMap = useMemo(() => {
+    const m = {};
+    plan.days.forEach(d => { m[d.date] = d; });
+    return m;
+  }, [plan.days]);
+
+  const updateDay = (date, patch) => {
+    setPlan(p => ({
+      ...p,
+      days: p.days.map(d => d.date === date ? { ...d, ...patch } : d)
+    }));
+  };
+
+  const toggleComplete = (date) => {
+    const d = dayMap[date];
+    if (!d) return;
+    updateDay(date, { completed: !d.completed });
+  };
+
+  const stats = useMemo(() => {
+    const total = plan.days.length;
+    const done = plan.days.filter(d => d.completed).length;
+    const upcoming = plan.days.filter(d => !d.completed && d.date >= isoToday()).length;
+    return { total, done, upcoming, pct: total ? Math.round((done/total)*100) : 0 };
+  }, [plan.days]);
+
+  // ---------- EXPORT / IMPORT ----------
+  const exportJSON = () => {
+    const blob = new Blob([JSON.stringify(plan, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `run-plan-${isoToday()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setShowExport(false);
+  };
+
+  // Compact export of past, meaningful days for feeding back into an LLM
+  // to regenerate the next phase of the plan based on what actually happened.
+  const exportHistory = () => {
+    const today = isoToday();
+    const past = (plan.days || []).filter(d => d.date < today);
+
+    // Keep only days where SOMETHING happened: completion, exercise checks, notes,
+    // feedback, or logged extras. Skip empty rest days etc.
+    const meaningful = past.filter(d => {
+      const hasExerciseDone = d.exerciseDone && Object.values(d.exerciseDone).some(Boolean);
+      const hasExerciseNotes = d.exerciseNotes && Object.values(d.exerciseNotes).some(v => v && v.trim());
+      const hasFeedback = d.feedback && d.feedback.trim();
+      const hasLogged = (d.loggedExtras || []).length > 0;
+      return d.completed || hasExerciseDone || hasExerciseNotes || hasFeedback || hasLogged;
+    });
+
+    // Build slim per-day records — strip coaching content, keep only what reflects reality
+    const slim = meaningful.map(d => {
+      const rec = {
+        date: d.date,
+        day_of_week: dayName(d.date),
+        planned: {
+          type: d.type,
+          title: d.title,
+        },
+        actual: {
+          completed: !!d.completed,
+        },
+      };
+      if (d.tag)             rec.planned.tag = d.tag;
+      if (d.run)             rec.planned.run = d.run;       // small, useful
+      if (d.strength)        rec.planned.strength = d.strength;
+      if (d.shoe && d.shoe !== '—') rec.planned.shoe = d.shoe;
+
+      // Slim exercises — strip coaching, keep prescription + completion + user notes
+      if (d.exercises && d.exercises.length) {
+        const done = d.exerciseDone || {};
+        const notes = d.exerciseNotes || {};
+        rec.planned.exercises = d.exercises.map((e, i) => {
+          const slimEx = { name: e.name };
+          if (e.sets) slimEx.sets = e.sets;
+          if (e.reps) slimEx.reps = e.reps;
+          if (e.tempo) slimEx.tempo = e.tempo;
+          if (done[i]) slimEx.done = true;
+          if (notes[i] && notes[i].trim()) slimEx.my_note = notes[i].trim();
+          return slimEx;
+        });
+      }
+
+      if (d.feedback && d.feedback.trim()) rec.actual.feedback = d.feedback.trim();
+      if (d.loggedExtras && d.loggedExtras.length) {
+        rec.actual.logged_extras = d.loggedExtras.map(x => {
+          const o = {};
+          if (x.kind)     o.kind = x.kind;
+          if (x.distance) o.distance = x.distance;
+          if (x.duration) o.duration = x.duration;
+          if (x.note)     o.note = x.note;
+          return o;
+        });
+      }
+      return rec;
+    });
+
+    // Summary stats over the window
+    const dateFrom = meaningful.length ? meaningful[0].date : null;
+    const dateTo = meaningful.length ? meaningful[meaningful.length - 1].date : null;
+    const completedCount = meaningful.filter(d => d.completed).length;
+    const totalExercisesDone = meaningful.reduce((sum, d) => {
+      return sum + Object.values(d.exerciseDone || {}).filter(Boolean).length;
+    }, 0);
+
+    const out = {
+      meta: {
+        exported_at: new Date().toISOString(),
+        purpose: 'Training history for plan regeneration. Past, meaningful days only. Use this to update or extend the plan based on what actually happened.',
+        plan_title: plan.meta?.title || 'Training plan',
+        plan_period: plan.meta?.period,
+        races: plan.meta?.races || [],
+        window: { from: dateFrom, to: dateTo, days_with_activity: meaningful.length },
+        summary: {
+          sessions_completed: completedCount,
+          exercises_checked_off: totalExercisesDone,
+        },
+      },
+      history: slim,
+    };
+
+    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `training-history-${isoToday()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setShowExport(false);
+  };
+
+  const exportCSV = () => {
+    const headers = ['date','day_of_week','type','title','run_distance','run_zone','run_pace','run_detail','strength_duration','exercises','shoe','tag','completed','feedback','logged_extras'];
+    const escape = (v) => {
+      const s = (v ?? '').toString().replace(/"/g, '""');
+      return `"${s}"`;
+    };
+    const rows = plan.days.map(d => [
+      d.date,
+      dayName(d.date),
+      d.type,
+      d.title,
+      d.run?.distance || '',
+      d.run?.zone || '',
+      d.run?.pace || '',
+      d.run?.detail || '',
+      d.strength?.duration || '',
+      (d.exercises||[]).map(e => `${e.name}${e.sets?` ${e.sets}×${e.reps}`:''}`).join(' | '),
+      d.shoe || '',
+      d.tag || '',
+      d.completed ? 'YES' : 'NO',
+      d.feedback || '',
+      (d.loggedExtras||[]).map(x => x.note).join(' | ')
+    ].map(escape).join(','));
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `run-plan-${isoToday()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setShowExport(false);
+  };
+
+  const importFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    const isCsv = file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv';
+    reader.onload = (ev) => {
+      const text = ev.target.result;
+      try {
+        if (isCsv) {
+          const updated = csvToPlan(text, plan);
+          setPlan(updated);
+          setShowImport(false);
+        } else {
+          const parsed = JSON.parse(text);
+          if (!parsed.days || !Array.isArray(parsed.days)) {
+            alert('Invalid plan file: missing "days" array.');
+            return;
+          }
+
+          // Build a lookup of the current plan's user-generated data, keyed by date
+          const existingByDate = {};
+          (plan.days || []).forEach(d => {
+            const userFields = {};
+            if (d.completed)          userFields.completed = d.completed;
+            if (d.feedback)           userFields.feedback = d.feedback;
+            if (d.loggedExtras?.length) userFields.loggedExtras = d.loggedExtras;
+            if (d.exerciseNotes && Object.keys(d.exerciseNotes).length)
+                                      userFields.exerciseNotes = d.exerciseNotes;
+            if (d.exerciseDone && Object.keys(d.exerciseDone).length)
+                                      userFields.exerciseDone = d.exerciseDone;
+            if (Object.keys(userFields).length) existingByDate[d.date] = userFields;
+          });
+
+          // Count how many days have data worth preserving
+          const daysWithNotes = Object.values(existingByDate).filter(u =>
+            u.exerciseNotes || u.feedback || u.loggedExtras?.length || u.exerciseDone
+          ).length;
+          const daysCompleted = Object.values(existingByDate).filter(u => u.completed).length;
+
+          // Build confirm message
+          const lines = [`Import "${file.name}"?`, ''];
+          lines.push(`${parsed.days.length} days in the new file.`);
+          if (daysWithNotes > 0 || daysCompleted > 0) {
+            lines.push('');
+            lines.push('Your existing data that will be KEPT:');
+            if (daysCompleted > 0)  lines.push(`  ✓ ${daysCompleted} session(s) marked complete`);
+            if (daysWithNotes > 0)  lines.push(`  ✓ Exercise notes & logs on ${daysWithNotes} day(s)`);
+            lines.push('');
+            lines.push('Plan structure (exercises, warmups, titles) will be updated from the file.');
+          } else {
+            lines.push('No existing notes or completed sessions found — safe to import.');
+          }
+
+          if (!window.confirm(lines.join('\n'))) return;
+
+          // Merge: incoming structure + preserved user fields for matching dates
+          const mergedDays = parsed.days.map(incoming => {
+            const existing = existingByDate[incoming.date] || {};
+            return { ...incoming, ...existing };
+          });
+
+          setPlan({ ...parsed, days: mergedDays });
+          setShowImport(false);
+        }
+      } catch (err) {
+        alert('Could not parse file: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+    // Reset input so re-importing the same file works
+    e.target.value = '';
+  };
+
+  // ---------- NAVIGATION ----------
+  // dir > 0 = forward in time (next), dir < 0 = backward (prev)
+  const navigate = (dir) => {
+    setSlideDir(dir > 0 ? 'forward' : 'back');
+    setSlideKey(k => k + 1);
+    if (view === 'daily') setCursor(addDays(cursor, dir));
+    else if (view === 'weekly') setCursor(addDays(cursor, dir * 7));
+    else setCursor(addDays(cursor, dir * 30));
+  };
+
+  const goToday = () => {
+    setSlideDir(null);
+    setSlideKey(k => k + 1);
+    setCursor(isoToday());
+  };
+
+  // Reset animation when switching views so the new view fades in cleanly
+  const switchView = (v) => {
+    if (v === view) return;
+    setSlideDir(null);
+    setSlideKey(k => k + 1);
+    setView(v);
+  };
+
+  // ---------- SWIPE HANDLING ----------
+  const SWIPE_MIN = 50;       // minimum horizontal distance in px
+  const SWIPE_MAX_VERTICAL_RATIO = 0.5; // |dy| must be <= 0.5 * |dx|
+
+  const onTouchStart = (e) => {
+    // Don't start swipe if user is interacting with an input/textarea/button
+    const t = e.target;
+    if (t.closest('input, textarea, select, button, a')) {
+      touchRef.current = null;
+      return;
+    }
+    const touch = e.touches[0];
+    touchRef.current = { x: touch.clientX, y: touch.clientY, t: Date.now() };
+  };
+
+  const onTouchEnd = (e) => {
+    const start = touchRef.current;
+    touchRef.current = null;
+    if (!start) return;
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+    if (absDx < SWIPE_MIN) return;
+    if (absDy > absDx * SWIPE_MAX_VERTICAL_RATIO) return;
+    // Swipe left (dx negative) = go forward; swipe right = go back
+    navigate(dx < 0 ? 1 : -1);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f5f3ee] text-[#0a0a0a]" style={{ fontFamily: '"Space Grotesk", -apple-system, sans-serif' }}>
+      {/* fonts + decoration */}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+      {/* HEADER — Bandit editorial style */}
+      <header className="sticky top-0 z-30 bg-[#f5f3ee] border-b border-[#0a0a0a]">
+        {/* Top metric strip — bib-number style */}
+        <div className="flex items-stretch border-b border-[#0a0a0a]/15 text-[10px] font-mono uppercase tracking-[0.15em]">
+          <div className="flex-1 px-3 py-1.5 border-r border-[#0a0a0a]/15 flex items-center justify-between">
+            <span className="text-[#0a0a0a]/50">SESSIONS</span>
+            <span className="font-bold tabular-nums">{String(stats.done).padStart(2,'0')}/{String(stats.total).padStart(2,'0')}</span>
+          </div>
+          <div className="flex-1 px-3 py-1.5 flex items-center justify-between">
+            <span className="text-[#0a0a0a]/50">COMPLETE</span>
+            <span className="font-bold tabular-nums">{String(stats.pct).padStart(2,'0')}%</span>
+          </div>
+        </div>
+
+        <div className="px-4 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              {/* Wordmark — custom drawn paths, fully scalable */}
+              <svg
+                viewBox="0 0 525 130"
+                className="block h-[44px] w-auto mt-1"
+                aria-label="RE/RΔN"
+                role="img"
+              >
+                <g transform="skewX(-9)" fill="#0a0a0a">
+                  {/* R #1 */}
+                  <rect x="20" y="10" width="22" height="100" />
+                  <rect x="20" y="10" width="70" height="22" />
+                  <rect x="20" y="54" width="70" height="22" />
+                  <rect x="68" y="10" width="22" height="66" />
+                  <polygon points="68,76 90,76 100,110 78,110" />
+                  {/* E */}
+                  <rect x="106" y="10" width="22" height="100" />
+                  <rect x="106" y="10" width="72" height="22" />
+                  <rect x="106" y="54" width="60" height="22" />
+                  <rect x="106" y="88" width="72" height="22" />
+                </g>
+                {/* Slash */}
+                <polygon points="222,10 250,10 200,110 172,110" fill="#c8202b" />
+                <g transform="skewX(-9)" fill="#0a0a0a">
+                  {/* R #2 */}
+                  <rect x="265" y="10" width="22" height="100" />
+                  <rect x="265" y="10" width="70" height="22" />
+                  <rect x="265" y="54" width="70" height="22" />
+                  <rect x="313" y="10" width="22" height="66" />
+                  <polygon points="313,76 335,76 345,110 323,110" />
+                  {/* Δ — solid graphic mark */}
+                  <polygon points="395,6 433,112 357,112" />
+                  {/* N */}
+                  <rect x="447" y="10" width="22" height="100" />
+                  <rect x="495" y="10" width="22" height="100" />
+                  <polygon points="447,10 469,10 517,110 495,110" />
+                </g>
+              </svg>
+              <div className="mt-1.5 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.15em] text-[#0a0a0a]/60">
+                <span className="inline-block w-1.5 h-1.5 bg-[#c8202b] rounded-full" />
+                <NextRaceLine races={plan.meta.races} fallback={plan.meta.period} />
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => setShowSync(true)}
+                className={`p-2 border ${syncStatus.signedIn ? 'border-[#0a0a0a] bg-[#0a0a0a] text-[#f5f3ee]' : 'border-[#0a0a0a]/30 text-[#0a0a0a] hover:border-[#0a0a0a]'} active:scale-95 transition relative`}
+                aria-label="Drive sync"
+              >
+                {syncStatus.signedIn ? <Icon name="Cloud" size={16} /> : <Icon name="CloudOff" size={16} />}
+                {syncStatus.syncing && (
+                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-[#c8202b] rounded-full animate-pulse" />
+                )}
+              </button>
+              <button onClick={() => setShowShoes(true)} className="p-2 border border-[#0a0a0a]/30 hover:border-[#0a0a0a] active:scale-95 transition" aria-label="Shoes">
+                <Icon name="Settings" size={16} />
+              </button>
+              <button onClick={() => setShowExport(true)} className="p-2 border border-[#0a0a0a]/30 hover:border-[#0a0a0a] active:scale-95 transition" aria-label="Export">
+                <Icon name="Download" size={16} />
+              </button>
+              <button onClick={() => setShowImport(true)} className="p-2 border border-[#0a0a0a]/30 hover:border-[#0a0a0a] active:scale-95 transition" aria-label="Import">
+                <Icon name="Upload" size={16} />
+              </button>
+              {/* Date navigation chevrons */}
+              <button onClick={() => navigate(-1)} className="p-2 border border-[#0a0a0a]/40 hover:border-[#0a0a0a] active:scale-95 transition" aria-label="Previous">
+                <Icon name="ChevronLeft" size={16} />
+              </button>
+              <button onClick={() => navigate(1)} className="p-2 border border-[#0a0a0a]/40 hover:border-[#0a0a0a] active:scale-95 transition" aria-label="Next">
+                <Icon name="ChevronRight" size={16} />
+              </button>
+              {/* View switcher dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowViewMenu(v => !v)}
+                  className="p-2 border border-[#0a0a0a] bg-[#0a0a0a] text-[#f5f3ee] hover:bg-[#c8202b] hover:border-[#c8202b] active:scale-95 transition flex items-center gap-1"
+                  aria-label="Change view"
+                >
+                  <Icon name="Calendar" size={14} />
+                  <Icon name="ChevronDown" size={10} className={`transition-transform ${showViewMenu ? 'rotate-180' : ''}`} />
+                </button>
+                {showViewMenu && (
+                  <>
+                    {/* backdrop */}
+                    <div className="fixed inset-0 z-30" onClick={() => setShowViewMenu(false)} />
+                    {/* menu */}
+                    <div className="absolute right-0 top-full mt-1 z-40 bg-[#f5f3ee] border-2 border-[#0a0a0a] min-w-[120px] shadow-xl">
+                      {['daily','weekly','monthly'].map(v => (
+                        <button
+                          key={v}
+                          onClick={() => { switchView(v); setShowViewMenu(false); }}
+                          className={`w-full px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.2em] active:bg-[#0a0a0a]/5 transition ${view === v ? 'bg-[#0a0a0a] text-[#f5f3ee]' : 'text-[#0a0a0a]'}`}
+                        >
+                          {view === v && <span className="text-[#c8202b] mr-1.5">●</span>}
+                          {v}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Progress bar — full width */}
+          <div className="mt-3 h-[3px] bg-[#0a0a0a]/10 relative overflow-hidden">
+            <div className="absolute inset-y-0 left-0 bg-[#0a0a0a] transition-all duration-700" style={{ width: `${stats.pct}%` }} />
+          </div>
+        </div>
+
+        {/* Marquee strip — Bandit signature element */}
+        <div className="border-t border-[#0a0a0a] bg-[#0a0a0a] text-[#f5f3ee] overflow-hidden">
+          <div className="flex whitespace-nowrap py-1.5 marquee" style={{ fontFamily: '"Anton", sans-serif' }}>
+            {Array.from({length: 8}).map((_, i) => (
+              <span key={i} className="text-sm tracking-[0.15em] px-3 shrink-0">EVOLVE RUNNING <span className="text-[#c8202b]">→</span> FIND THE BALANCE <span className="text-[#c8202b]">→</span> KEEP GOING <span className="text-[#c8202b]">→</span></span>
+            ))}
+          </div>
+        </div>
+      </header>
+
+      {/* MAIN CONTENT */}
+      <main
+        className="px-4 py-4 pb-24 overflow-hidden touch-pan-y select-none"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
+        <div
+          key={`${view}-${slideKey}`}
+          className={`slide-${slideDir || 'static'}`}
+        >
+          {view === 'daily' && (
+            <DailyView
+              date={cursor}
+              day={dayMap[cursor]}
+              onToggle={toggleComplete}
+              onEdit={(d) => setEditing(d)}
+              onVideo={setVideoExercise}
+              onLog={(d) => setLogging(d)}
+              onCoach={() => dayMap[cursor] && handleStartCoach(dayMap[cursor])}
+              updateDay={updateDay}
+            />
+          )}
+          {view === 'weekly' && (
+            <WeeklyView
+              cursor={cursor}
+              dayMap={dayMap}
+              onTap={(date) => { setCursor(date); switchView('daily'); }}
+              onToggle={toggleComplete}
+            />
+          )}
+          {view === 'monthly' && (
+            <MonthlyView
+              cursor={cursor}
+              dayMap={dayMap}
+              onTap={(date) => { setCursor(date); switchView('daily'); }}
+            />
+          )}
+        </div>
+
+        {/* Swipe hint */}
+        <div className="text-center mt-6 text-[9px] font-mono uppercase tracking-[0.3em] text-[#0a0a0a]/30 pointer-events-none">
+          ← SWIPE TO NAVIGATE →
+        </div>
+      </main>
+
+      <style>{`
+        @keyframes slideInForward {
+          from { opacity: 0; transform: translateX(40px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slideInBack {
+          from { opacity: 0; transform: translateX(-40px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes fadeStatic {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes marqueeScroll {
+          from { transform: translateX(0); }
+          to   { transform: translateX(-50%); }
+        }
+        .slide-forward { animation: slideInForward 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+        .slide-back    { animation: slideInBack    0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+        .slide-static  { animation: fadeStatic     0.2s ease; }
+        .marquee       { animation: marqueeScroll 40s linear infinite; will-change: transform; }
+      `}</style>
+
+      {/* MODALS */}
+      {editing && (
+        <EditModal
+          day={dayMap[editing]}
+          shoes={plan.meta.shoes || []}
+          onClose={() => setEditing(null)}
+          onSave={(patch) => { updateDay(editing, patch); setEditing(null); }}
+        />
+      )}
+      {logging && (
+        <LogModal
+          day={dayMap[logging]}
+          onClose={() => setLogging(null)}
+          onSave={(entry) => {
+            const d = dayMap[logging];
+            updateDay(logging, { loggedExtras: [...(d.loggedExtras || []), entry] });
+            setLogging(null);
+          }}
+        />
+      )}
+      {showShoes && (
+        <ShoeManagerModal
+          shoes={plan.meta.shoes || []}
+          onClose={() => setShowShoes(false)}
+          onSave={(shoes) => {
+            setPlan(p => ({ ...p, meta: { ...p.meta, shoes } }));
+            setShowShoes(false);
+          }}
+        />
+      )}
+      {showImport && (
+        <ImportModal onClose={() => setShowImport(false)} onPick={() => fileRef.current?.click()} />
+      )}
+      {showExport && (
+        <ExportModal onClose={() => setShowExport(false)} onJSON={exportJSON} onCSV={exportCSV} onHistory={exportHistory} />
+      )}
+      {videoExercise && (
+        <VideoModal exercise={videoExercise} onClose={() => setVideoExercise(null)} />
+      )}
+      {showSync && (
+        <SyncModal
+          status={syncStatus}
+          onClose={() => setShowSync(false)}
+          onSignIn={handleDriveSignIn}
+          onSignOut={handleDriveSignOut}
+          onPush={handlePushToDrive}
+          onPull={handlePullFromDrive}
+        />
+      )}
+      {coachLoading && (
+        <div className="fixed inset-0 z-50 bg-[#0a0a0a]/90 flex flex-col items-center justify-center">
+          <div className="border-2 border-[#f5f3ee] bg-[#f5f3ee] text-[#0a0a0a] px-8 py-6">
+            <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-[#c8202b] mb-2">— COACH —</p>
+            <p className="text-2xl font-bold uppercase" style={{ fontFamily: '"Anton", sans-serif', letterSpacing: '0.05em' }}>BUILDING WORKOUT</p>
+            <div className="mt-3 h-[2px] bg-[#0a0a0a]/10 overflow-hidden">
+              <div className="h-full bg-[#c8202b] w-1/3 marquee" style={{ animationDuration: '1.5s' }} />
+            </div>
+          </div>
+        </div>
+      )}
+      {coachScript && (
+        <WorkoutPlayer script={coachScript} onClose={() => setCoachScript(null)} />
+      )}
+      <input ref={fileRef} type="file" accept=".json,.csv,application/json,text/csv" className="hidden" onChange={importFile} />
+    </div>
+  );
+}
+
+// ---------- DAILY VIEW ----------
+function DailyView({ date, day, onToggle, onEdit, onVideo, onLog, onCoach, onZones, updateDay }) {
+  if (!day) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <Icon name="Calendar" size={40} className="text-slate-600 mb-3" />
+        <p className="text-slate-400 text-sm">No session planned for this day.</p>
+        <p className="text-slate-500 text-xs mt-1">{fmtDate(date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+      </div>
+    );
+  }
+
+  const style = ts(day.type);
+  const iconName = style.icon;
+  const isDark = style.text.includes('f5f3ee');
+
+  return (
+    <div className="space-y-5">
+      {/* Date hero — editorial style */}
+      <div className="flex items-end justify-between border-b-2 border-[#0a0a0a] pb-3">
+        <div>
+          <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-[#0a0a0a]/60">
+            {dayName(date)} · WK {Math.ceil((fmtDate(date).getDate() + new Date(fmtDate(date).getFullYear(), 0, 1).getDay()) / 7)}
+          </p>
+          <h2 className="text-[64px] leading-[0.85] mt-1" style={{ fontFamily: '"Anton", sans-serif' }}>
+            {monthName(date).toUpperCase()} {dayNumber(date)}
+          </h2>
+        </div>
+        <button
+          onClick={() => onToggle(date)}
+          className={`flex items-center gap-2 px-3 py-2 transition active:scale-95 border-2 ${day.completed ? 'bg-[#0a0a0a] text-[#f5f3ee] border-[#0a0a0a]' : 'bg-[#f5f3ee] text-[#0a0a0a] border-[#0a0a0a]'}`}
+        >
+          {day.completed ? <Icon name="CheckCircle2" size={16} /> : <Icon name="Circle" size={16} />}
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em]">{day.completed ? 'DONE' : 'MARK'}</span>
+        </button>
+      </div>
+
+      {/* Session card — flat, editorial */}
+      <div className={`relative ${style.bg} border-2 ${style.border} overflow-hidden ${isDark ? 'text-[#f5f3ee]' : 'text-[#0a0a0a]'}`}>
+        {/* Top tag bar */}
+        <div className={`flex items-stretch border-b-2 ${style.border}`}>
+          <div className="flex-1 px-4 py-2 flex items-center gap-2">
+            <Icon name={iconName} size={14} />
+            <span className="text-[10px] uppercase tracking-[0.25em] font-bold">{style.label}</span>
+          </div>
+          <button onClick={() => onEdit(date)} className={`px-3 border-l-2 ${style.border} ${isDark ? 'hover:bg-white/10' : 'hover:bg-black/10'} transition`}>
+            <Icon name="Edit3" size={14} />
+          </button>
+        </div>
+
+        <div className="p-5">
+          <h3 className="text-[28px] leading-[0.95]" style={{ fontFamily: '"Anton", sans-serif', letterSpacing: '0.01em' }}>{day.title.toUpperCase()}</h3>
+
+          {day.run && (
+            <div className="mt-4 space-y-2">
+              {/* Big distance — bib number style */}
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <span className="text-[56px] leading-[0.85] tabular-nums" style={{ fontFamily: '"Anton", sans-serif' }}>{day.run.distance}</span>
+              </div>
+              {/* Data row */}
+              <div className="flex items-center gap-3 text-[10px] font-mono uppercase tracking-[0.15em] flex-wrap">
+                {day.run.zone && (
+                  <button
+                    onClick={() => onZones && onZones()}
+                    className={`px-2 py-1 border ${isDark ? 'border-[#f5f3ee]/40 hover:border-[#f5f3ee]' : 'border-[#0a0a0a]/40 hover:border-[#0a0a0a]'} active:scale-95 transition font-bold`}
+                  >
+                    ZONE {day.run.zone}
+                  </button>
+                )}
+                {day.run.pace && <span className="opacity-70">PACE · {day.run.pace}/KM</span>}
+              </div>
+              {day.run.detail && <p className="text-sm leading-relaxed mt-2 opacity-85">{day.run.detail}</p>}
+            </div>
+          )}
+
+          {day.strength && (
+            <div className="mt-4 flex items-baseline gap-3">
+              <span className="text-[56px] leading-[0.85] tabular-nums" style={{ fontFamily: '"Anton", sans-serif' }}>{day.strength.duration}</span>
+              <span className="text-[10px] font-mono uppercase tracking-[0.2em] opacity-70">SESSION</span>
+            </div>
+          )}
+
+          {day.shoe && day.shoe !== '—' && (
+            <div className={`mt-4 pt-3 border-t ${isDark ? 'border-[#f5f3ee]/20' : 'border-[#0a0a0a]/20'}`}>
+              <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.2em]">
+                <span className="opacity-60">FOOTWEAR /</span>
+                <span className="font-bold">{day.shoe.toUpperCase()}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Session notes (overall session-level coaching) */}
+      {day.sessionNotes && (
+        <div className="border-2 border-[#0a0a0a] bg-[#1c2942] text-[#f5f3ee]">
+          <div className="px-4 py-2 border-b border-[#f5f3ee]/20 flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-[0.25em] font-bold">— SESSION BRIEF —</span>
+          </div>
+          <p className="px-4 py-3 text-sm leading-relaxed" style={{ fontFamily: '"Space Grotesk", sans-serif' }}>
+            {day.sessionNotes}
+          </p>
+        </div>
+      )}
+
+      {/* Warmup section — collapsible */}
+      {day.warmup && day.warmup.items && day.warmup.items.length > 0 && (
+        <WarmupBlock warmup={day.warmup} />
+      )}
+
+      {/* Exercises section */}
+      {day.exercises && day.exercises.length > 0 && (
+        <div className="border-2 border-[#0a0a0a] bg-[#f5f3ee]">
+          {/* Header bar */}
+          <div className="flex items-stretch border-b-2 border-[#0a0a0a]">
+            <div className="flex-1 px-4 py-2 flex items-center gap-2">
+              <Icon name="Dumbbell" size={14} />
+              <span className="text-[10px] uppercase tracking-[0.25em] font-bold">EXERCISES</span>
+              {day.tag && (
+                <span className="ml-1 px-2 py-0.5 bg-[#0a0a0a] text-[#f5f3ee] text-[9px] font-bold uppercase tracking-[0.2em]">
+                  {day.tag.toUpperCase()}
+                </span>
+              )}
+            </div>
+            <div className="px-4 py-2 border-l-2 border-[#0a0a0a] text-[10px] font-mono font-bold tabular-nums">
+              {(() => {
+                const done = Object.values(day.exerciseDone || {}).filter(Boolean).length;
+                return `${String(done).padStart(2,'0')}/${String(day.exercises.length).padStart(2,'0')}`;
+              })()}
+            </div>
+          </div>
+
+          {onCoach && (
+            <button
+              onClick={onCoach}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#c8202b] text-[#f5f3ee] active:scale-[0.99] transition border-b-2 border-[#0a0a0a]"
+            >
+              <Icon name="Sparkles" size={14} />
+              <span className="text-[11px] font-bold uppercase tracking-[0.25em]">START GUIDED WORKOUT</span>
+              <Icon name="ChevronRight" size={14} />
+            </button>
+          )}
+
+          <div>
+            {day.exercises.map((ex, i) => (
+              <ExerciseRow
+                key={i}
+                ex={ex}
+                onVideo={() => onVideo(ex)}
+                index={i + 1}
+                isLast={i === day.exercises.length - 1}
+                personalNote={(day.exerciseNotes || {})[i] || ''}
+                onNoteChange={(text) => {
+                  const next = { ...(day.exerciseNotes || {}), [i]: text };
+                  updateDay(date, { exerciseNotes: next });
+                }}
+                done={!!(day.exerciseDone || {})[i]}
+                onToggleDone={() => {
+                  const next = { ...(day.exerciseDone || {}) };
+                  if (next[i]) delete next[i]; else next[i] = true;
+                  updateDay(date, { exerciseDone: next });
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Cool-down section — collapsible */}
+      {day.cooldown && day.cooldown.items && day.cooldown.items.length > 0 && (
+        <CooldownBlock cooldown={day.cooldown} />
+      )}
+
+      {/* Logged extras */}
+      <div className="border-2 border-[#0a0a0a] bg-[#f5f3ee]">
+        <div className="flex items-stretch border-b-2 border-[#0a0a0a]">
+          <div className="flex-1 px-4 py-2 flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-[0.25em] font-bold">LOGGED ACTIVITY</span>
+          </div>
+          <button
+            onClick={() => onLog(date)}
+            className="px-4 py-2 border-l-2 border-[#0a0a0a] bg-[#0a0a0a] text-[#f5f3ee] hover:bg-[#c8202b] hover:border-[#c8202b] active:scale-95 transition flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.2em]"
+          >
+            <Icon name="Plus" size={12} /> LOG
+          </button>
+        </div>
+
+        {(day.loggedExtras || []).length === 0 ? (
+          <p className="px-4 py-4 text-[11px] font-mono uppercase tracking-[0.15em] text-[#0a0a0a]/40">— NO EXTRA ACTIVITY —</p>
+        ) : (
+          <div>
+            {(day.loggedExtras || []).map((x, i, arr) => (
+              <div key={x.id} className={`flex items-start justify-between gap-3 px-4 py-3 ${i < arr.length - 1 ? 'border-b border-[#0a0a0a]/15' : ''}`}>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    {x.kind && (
+                      <span className="text-[9px] uppercase tracking-[0.2em] font-bold border border-[#0a0a0a] px-1.5 py-0.5">{x.kind}</span>
+                    )}
+                    {x.distance && (
+                      <span className="text-xl tabular-nums" style={{ fontFamily: '"Anton", sans-serif' }}>{x.distance}</span>
+                    )}
+                    {x.duration && (
+                      <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-[#0a0a0a]/60">{x.duration}</span>
+                    )}
+                  </div>
+                  {x.note && <p className="text-sm text-[#0a0a0a]/80 mt-1">{x.note}</p>}
+                </div>
+                <button
+                  onClick={() => updateDay(date, { loggedExtras: day.loggedExtras.filter(e => e.id !== x.id) })}
+                  className="text-[#0a0a0a]/30 hover:text-[#c8202b] transition shrink-0 p-1"
+                >
+                  <Icon name="Trash2" size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Feedback */}
+      <div className="border-2 border-[#0a0a0a] bg-[#f5f3ee]">
+        <div className="px-4 py-2 border-b-2 border-[#0a0a0a] flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-[0.25em] font-bold">FIELD NOTES</span>
+        </div>
+        <textarea
+          value={day.feedback || ''}
+          onChange={(e) => updateDay(date, { feedback: e.target.value })}
+          placeholder="How did it feel? Pain · Energy · RPE..."
+          rows={3}
+          className="w-full bg-transparent border-0 px-4 py-3 text-sm text-[#0a0a0a] placeholder-[#0a0a0a]/30 focus:outline-none resize-none"
+          style={{ fontFamily: '"Space Grotesk", sans-serif' }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SessionBlock({ data, fallbackTitle, accent }) {
+  const [open, setOpen] = useState(false);
+  if (!data || !data.items || data.items.length === 0) return null;
+  return (
+    <div className="border-2 border-[#0a0a0a] bg-[#f5f3ee]">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-stretch border-b-2 border-[#0a0a0a] active:bg-[#e8e4d9] transition"
+      >
+        <div className="flex-1 px-4 py-2 flex items-center gap-2 text-left">
+          {accent && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: accent }} />}
+          <Icon name="Activity" size={14} />
+          <span className="text-[10px] uppercase tracking-[0.25em] font-bold">{data.title || fallbackTitle}</span>
+        </div>
+        <div className="px-4 py-2 border-l-2 border-[#0a0a0a] flex items-center gap-1 text-[10px] font-mono font-bold tabular-nums">
+          <span>{String(data.items.length).padStart(2,'0')}</span>
+          <Icon name="ChevronDown" size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+        </div>
+      </button>
+      {open && (
+        <div>
+          {data.items.map((item, i) => (
+            <div key={i} className={`px-4 py-2.5 ${i < data.items.length - 1 ? 'border-b border-[#0a0a0a]/15' : ''}`}>
+              <div className="flex items-baseline gap-3">
+                <span className="text-[10px] font-mono font-bold tabular-nums text-[#0a0a0a]/40 shrink-0 w-6">{String(i + 1).padStart(2,'0')}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-[#0a0a0a]" style={{ fontFamily: '"Space Grotesk", sans-serif' }}>{item.name}</p>
+                  {item.notes && (
+                    <p className="text-xs text-[#0a0a0a]/70 mt-0.5 leading-snug">{item.notes}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WarmupBlock({ warmup }) {
+  return <SessionBlock data={warmup} fallbackTitle="WARM-UP" />;
+}
+
+function CooldownBlock({ cooldown }) {
+  return <SessionBlock data={cooldown} fallbackTitle="COOL-DOWN" accent="#1c2942" />;
+}
+
+// Parse a timed duration out of a reps string like "30s", "30s each side", "10 holds × 5s", "60s each".
+// Returns seconds, or null if not a timed exercise.
+function parseTimedReps(reps) {
+  if (!reps || typeof reps !== 'string') return null;
+  // Pattern: "× 5s", "× 30s" etc — the multiplier-then-seconds form (10 holds × 5s)
+  const mult = reps.match(/×\s*(\d+)\s*s\b/i);
+  if (mult) return parseInt(mult[1], 10);
+  // Pattern: bare "30s" or "30s each side"
+  const bare = reps.match(/(\d+)\s*s\b/i);
+  if (bare) return parseInt(bare[1], 10);
+  return null;
+}
+
+// Self-contained timer component with countdown, pause/resume/reset, beep at end, wake lock.
+// Parse a tempo string like "3s up · 1s hold · 3s down" or "2s up, 1s squeeze, 2s down"
+// into an ordered array of phases. Returns null if the tempo is qualitative
+// (e.g. "controlled, ~2s each direction") or empty.
+function parseTempo(tempoStr) {
+  if (!tempoStr || typeof tempoStr !== 'string') return null;
+
+  // Bail on qualitative tempos that have no structured per-phase timing
+  const qualitative = /^\s*(controlled|slow|land softly|static hold(\s|$))/i;
+  if (qualitative.test(tempoStr)) return null;
+
+  // Split on · or comma, normalize whitespace
+  const parts = tempoStr.split(/[·,]/).map(p => p.trim()).filter(Boolean);
+
+  const phases = [];
+  for (const part of parts) {
+    // Match "Ns word" or "N word" (e.g. "3s up", "1s hold", "2s squeeze")
+    const m = part.match(/^(\d+)\s*s?\s+(.+)$/i);
+    if (!m) continue;
+    const seconds = parseInt(m[1], 10);
+    let label = m[2].trim().toUpperCase();
+    // Strip trailing words like "per rep"
+    label = label.replace(/\s+PER\s+REP$/i, '');
+    if (seconds > 0 && label.length > 0) {
+      phases.push({ seconds, label });
+    }
+  }
+
+  // Special case: a single "Ns hold" entry — treat as valid (e.g. "5s hold per rep")
+  if (phases.length === 0) {
+    const single = tempoStr.match(/(\d+)\s*s\s+hold/i);
+    if (single) {
+      return [{ seconds: parseInt(single[1], 10), label: 'HOLD' }];
+    }
+    return null;
+  }
+
+  return phases;
+}
+
+// Phase-coded color: UP/EXTEND/OUT = ascending blue, HOLD/SQUEEZE/PAUSE = red, DOWN/RETURN/BACK = neutral grey
+function phaseColor(label) {
+  const L = label.toUpperCase();
+  if (/UP|EXTEND|OUT|LIFT/.test(L)) return '#1c2942';   // ink blue
+  if (/HOLD|SQUEEZE|PAUSE/.test(L))  return '#c8202b';  // red
+  if (/DOWN|RETURN|BACK|LOWER/.test(L)) return '#7a8a8d'; // steel
+  return '#0a0a0a'; // default asphalt
+}
+
+// Beep helper — different frequencies per phase so ear can identify
+function playPhaseBeep(label) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const L = label.toUpperCase();
+    // High beep for UP, mid for HOLD, low for DOWN
+    let freq = 660;
+    if (/UP|EXTEND|OUT|LIFT/.test(L)) freq = 880;
+    else if (/HOLD|SQUEEZE|PAUSE/.test(L)) freq = 660;
+    else if (/DOWN|RETURN|BACK|LOWER/.test(L)) freq = 440;
+    osc.frequency.value = freq;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.2);
+  } catch {}
+}
+
+// Rep-tempo metronome: cycles through phases of a single rep, counts reps completed,
+// audio-cues each phase transition, optional voice readout of phase name.
+function RepTempoMetronome({ phases, targetReps, onClose }) {
+  const [phaseIdx, setPhaseIdx] = useState(0);
+  const [secondsLeft, setSecondsLeft] = useState(phases[0].seconds);
+  const [running, setRunning] = useState(true);
+  const [repsDone, setRepsDone] = useState(0);
+  const [voiceOn, setVoiceOn] = useState(true);
+  const intervalRef = useRef(null);
+  const wakeLockRef = useRef(null);
+
+  const currentPhase = phases[phaseIdx];
+  const totalRepSeconds = phases.reduce((a, p) => a + p.seconds, 0);
+  const targetRepCount = parseInt(targetReps) || null;
+  const isComplete = targetRepCount && repsDone >= targetRepCount;
+
+  // Speak phase label using TTS
+  const speak = (text) => {
+    if (!voiceOn || !('speechSynthesis' in window)) return;
+    try {
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.rate = 1.3;
+      utter.pitch = 1.0;
+      utter.volume = 0.9;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utter);
+    } catch {}
+  };
+
+  // Phase change effect: beep + speak
+  useEffect(() => {
+    if (!running) return;
+    playPhaseBeep(currentPhase.label);
+    speak(currentPhase.label);
+  }, [phaseIdx, running]);
+
+  // Tick
+  useEffect(() => {
+    if (!running || isComplete) {
+      clearInterval(intervalRef.current);
+      return;
+    }
+    intervalRef.current = setInterval(() => {
+      setSecondsLeft(s => {
+        if (s <= 1) {
+          // Phase done — advance
+          const nextIdx = (phaseIdx + 1) % phases.length;
+          if (nextIdx === 0) {
+            // Completed a full rep
+            setRepsDone(r => r + 1);
+          }
+          setPhaseIdx(nextIdx);
+          return phases[nextIdx].seconds;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(intervalRef.current);
+  }, [running, phaseIdx, isComplete]);
+
+  // Wake lock during run
+  useEffect(() => {
+    let cancelled = false;
+    async function acquire() {
+      if (running && !isComplete && 'wakeLock' in navigator && !wakeLockRef.current) {
+        try {
+          const lock = await navigator.wakeLock.request('screen');
+          if (!cancelled) wakeLockRef.current = lock;
+        } catch {}
+      } else if ((!running || isComplete) && wakeLockRef.current) {
+        try { await wakeLockRef.current.release(); } catch {}
+        wakeLockRef.current = null;
+      }
+    }
+    acquire();
+    return () => {
+      cancelled = true;
+      if (wakeLockRef.current) {
+        try { wakeLockRef.current.release(); } catch {}
+        wakeLockRef.current = null;
+      }
+    };
+  }, [running, isComplete]);
+
+  // Final beep on complete
+  useEffect(() => {
+    if (!isComplete) return;
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [0, 0.2, 0.4].forEach(t => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.value = 880;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime + t);
+        gain.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + t + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.15);
+        osc.start(ctx.currentTime + t);
+        osc.stop(ctx.currentTime + t + 0.2);
+      });
+      if (navigator.vibrate) navigator.vibrate([150, 80, 150, 80, 150]);
+    } catch {}
+  }, [isComplete]);
+
+  const reset = () => {
+    setPhaseIdx(0);
+    setSecondsLeft(phases[0].seconds);
+    setRepsDone(0);
+    setRunning(true);
+  };
+
+  const phaseProgress = ((currentPhase.seconds - secondsLeft) / currentPhase.seconds) * 100;
+  const color = phaseColor(currentPhase.label);
+
+  return (
+    <div className="border-2 border-[#0a0a0a] bg-[#0a0a0a] text-[#f5f3ee]">
+      {/* Header */}
+      <div className="flex items-stretch border-b border-[#f5f3ee]/20">
+        <div className="flex-1 px-3 py-1.5 flex items-center gap-2">
+          <Icon name="Activity" size={12} />
+          <span className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold">REP TEMPO · {totalRepSeconds}s/REP</span>
+        </div>
+        <button
+          onClick={() => setVoiceOn(v => !v)}
+          className="px-3 border-l border-[#f5f3ee]/20 hover:bg-[#f5f3ee]/10 active:scale-95 transition"
+          title={voiceOn ? 'Voice on' : 'Voice off'}
+        >
+          {voiceOn ? <Icon name="Volume2" size={12} /> : <Icon name="VolumeX" size={12} />}
+        </button>
+        <button onClick={onClose} className="px-3 border-l border-[#f5f3ee]/20 hover:bg-[#f5f3ee]/10 active:scale-95 transition">
+          <Icon name="X" size={12} />
+        </button>
+      </div>
+
+      {/* Main display */}
+      {isComplete ? (
+        <div className="px-3 py-4 text-center bg-[#c8202b]">
+          <div className="text-[48px] leading-[0.85] font-bold" style={{ fontFamily: '"Anton", sans-serif' }}>SET DONE</div>
+          <div className="text-[11px] font-mono uppercase tracking-[0.25em] mt-1 opacity-80">{repsDone} REPS COMPLETE</div>
+        </div>
+      ) : (
+        <>
+          {/* Phase label */}
+          <div className="px-3 pt-3 text-center" style={{ background: color }}>
+            <div className="text-[11px] font-mono uppercase tracking-[0.3em] opacity-80">— {currentPhase.label} —</div>
+          </div>
+
+          {/* Big countdown */}
+          <div className="px-3 pb-2 pt-1 text-center" style={{ background: color }}>
+            <div className="text-[80px] leading-[0.85] tabular-nums font-bold" style={{ fontFamily: '"Anton", sans-serif' }}>
+              {secondsLeft}
+            </div>
+          </div>
+
+          {/* Phase progress bar */}
+          <div className="h-[3px] bg-[#f5f3ee]/15">
+            <div className="h-full bg-[#f5f3ee] transition-[width] duration-1000 ease-linear" style={{ width: `${phaseProgress}%` }} />
+          </div>
+
+          {/* Stats row */}
+          <div className="flex items-stretch border-t border-[#f5f3ee]/20 text-[10px] font-mono uppercase tracking-[0.2em]">
+            <div className="flex-1 px-3 py-1.5 flex items-center justify-between border-r border-[#f5f3ee]/20">
+              <span className="opacity-60">REP</span>
+              <span className="font-bold tabular-nums">
+                {String(repsDone).padStart(2, '0')}{targetRepCount ? `/${String(targetRepCount).padStart(2,'0')}` : ''}
+              </span>
+            </div>
+            <div className="flex-1 px-3 py-1.5 flex items-center justify-between">
+              <span className="opacity-60">PHASE</span>
+              <span className="font-bold tabular-nums">{phaseIdx + 1}/{phases.length}</span>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Controls */}
+      <div className="flex items-stretch border-t border-[#f5f3ee]/20">
+        {!isComplete ? (
+          <>
+            <button
+              onClick={() => setRunning(r => !r)}
+              className="flex-1 py-2 hover:bg-[#f5f3ee]/10 active:scale-95 transition flex items-center justify-center gap-1.5"
+            >
+              {running
+                ? <><Icon name="Pause" size={12} fill="currentColor" /><span className="text-[10px] font-bold uppercase tracking-[0.2em]">PAUSE</span></>
+                : <><Icon name="Play" size={12} fill="currentColor" /><span className="text-[10px] font-bold uppercase tracking-[0.2em]">RESUME</span></>
+              }
+            </button>
+            <button
+              onClick={reset}
+              className="flex-1 py-2 border-l border-[#f5f3ee]/20 hover:bg-[#f5f3ee]/10 active:scale-95 transition flex items-center justify-center gap-1.5"
+            >
+              <Icon name="RefreshCw" size={12} />
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em]">RESET</span>
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={reset}
+            className="flex-1 py-2 hover:bg-[#f5f3ee]/10 active:scale-95 transition flex items-center justify-center gap-1.5"
+          >
+            <Icon name="RefreshCw" size={12} />
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em]">NEXT SET</span>
+          </button>
+        )}
+      </div>
+
+      {/* Phase preview row — small */}
+      <div className="flex items-stretch border-t border-[#f5f3ee]/20 text-[9px] font-mono">
+        {phases.map((p, i) => (
+          <div
+            key={i}
+            className={`flex-1 px-1.5 py-1 text-center uppercase tracking-[0.15em] ${i < phases.length - 1 ? 'border-r border-[#f5f3ee]/20' : ''} ${i === phaseIdx && !isComplete ? 'font-bold opacity-100' : 'opacity-40'}`}
+          >
+            {p.label} {p.seconds}s
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Timer({ initialSeconds, label, onClose }) {
+  const [secondsLeft, setSecondsLeft] = useState(initialSeconds);
+  const [running, setRunning] = useState(true);
+  const [done, setDone] = useState(false);
+  const intervalRef = useRef(null);
+  const wakeLockRef = useRef(null);
+
+  // Tick
+  useEffect(() => {
+    if (!running || done) {
+      clearInterval(intervalRef.current);
+      return;
+    }
+    intervalRef.current = setInterval(() => {
+      setSecondsLeft(s => {
+        if (s <= 1) {
+          setDone(true);
+          setRunning(false);
+          // Beep using Web Audio API — no asset, works offline
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.frequency.value = 880;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.5);
+            // Vibrate too if supported
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+          } catch {}
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(intervalRef.current);
+  }, [running, done]);
+
+  // Wake lock
+  useEffect(() => {
+    let cancelled = false;
+    async function acquire() {
+      if (running && !done && 'wakeLock' in navigator && !wakeLockRef.current) {
+        try {
+          const lock = await navigator.wakeLock.request('screen');
+          if (!cancelled) wakeLockRef.current = lock;
+        } catch {}
+      } else if ((!running || done) && wakeLockRef.current) {
+        try { await wakeLockRef.current.release(); } catch {}
+        wakeLockRef.current = null;
+      }
+    }
+    acquire();
+    return () => {
+      cancelled = true;
+      if (wakeLockRef.current) {
+        try { wakeLockRef.current.release(); } catch {}
+        wakeLockRef.current = null;
+      }
+    };
+  }, [running, done]);
+
+  const reset = () => {
+    setSecondsLeft(initialSeconds);
+    setDone(false);
+    setRunning(true);
+  };
+
+  const progress = ((initialSeconds - secondsLeft) / initialSeconds) * 100;
+  const mins = Math.floor(secondsLeft / 60);
+  const secs = secondsLeft % 60;
+  const display = mins > 0 ? `${mins}:${String(secs).padStart(2,'0')}` : String(secs);
+
+  return (
+    <div className={`border-2 ${done ? 'border-[#c8202b]' : 'border-[#0a0a0a]'} ${done ? 'bg-[#c8202b]' : 'bg-[#0a0a0a]'} text-[#f5f3ee]`}>
+      {/* Header bar */}
+      <div className="flex items-stretch border-b border-[#f5f3ee]/20">
+        <div className="flex-1 px-3 py-1.5 flex items-center gap-2">
+          <Icon name="Clock" size={12} />
+          <span className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold">{label || 'TIMER'}</span>
+        </div>
+        <button onClick={onClose} className="px-3 border-l border-[#f5f3ee]/20 hover:bg-[#f5f3ee]/10 active:scale-95 transition">
+          <Icon name="X" size={12} />
+        </button>
+      </div>
+
+      {/* Big number */}
+      <div className="px-3 py-3 text-center">
+        <div className="text-[72px] leading-[0.85] tabular-nums font-bold" style={{ fontFamily: '"Anton", sans-serif' }}>
+          {done ? 'DONE' : display}
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-[3px] bg-[#f5f3ee]/15">
+        <div className="h-full bg-[#f5f3ee] transition-[width] duration-1000 ease-linear" style={{ width: `${progress}%` }} />
+      </div>
+
+      {/* Controls */}
+      <div className="flex items-stretch border-t border-[#f5f3ee]/20">
+        {!done ? (
+          <>
+            <button
+              onClick={() => setRunning(r => !r)}
+              className="flex-1 py-2 hover:bg-[#f5f3ee]/10 active:scale-95 transition flex items-center justify-center gap-1.5"
+            >
+              {running
+                ? <><Icon name="Pause" size={12} fill="currentColor" /><span className="text-[10px] font-bold uppercase tracking-[0.2em]">PAUSE</span></>
+                : <><Icon name="Play" size={12} fill="currentColor" /><span className="text-[10px] font-bold uppercase tracking-[0.2em]">RESUME</span></>
+              }
+            </button>
+            <button
+              onClick={reset}
+              className="flex-1 py-2 border-l border-[#f5f3ee]/20 hover:bg-[#f5f3ee]/10 active:scale-95 transition flex items-center justify-center gap-1.5"
+            >
+              <Icon name="RefreshCw" size={12} />
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em]">RESET</span>
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={reset}
+            className="flex-1 py-2 hover:bg-[#f5f3ee]/10 active:scale-95 transition flex items-center justify-center gap-1.5"
+          >
+            <Icon name="RefreshCw" size={12} />
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em]">GO AGAIN</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ExerciseRow({ ex, onVideo, index, isLast, personalNote = '', onNoteChange, done = false, onToggleDone }) {
+  const [open, setOpen] = useState(false);
+  const [timer, setTimer] = useState(null); // { seconds, label } or null
+  const [metronome, setMetronome] = useState(false); // boolean — is the rep-tempo metronome shown?
+  const hasDetail = ex.notes || (ex.cues && ex.cues.length > 0) || ex.regression || ex.progression || ex.equipment || ex.tempo || ex.target || ex.painRule;
+  const hasNote = personalNote && personalNote.trim().length > 0;
+  const timedSeconds = parseTimedReps(ex.reps);
+  const tempoPhases = parseTempo(ex.tempo);
+  const targetRepCount = (() => {
+    if (!ex.reps) return null;
+    // Pull first integer from reps string (e.g. "6-8" -> 6, "8 per leg" -> 8)
+    const m = String(ex.reps).match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : null;
+  })();
+
+  return (
+    <div className={`${!isLast ? 'border-b border-[#0a0a0a]/15' : ''} ${done ? 'bg-[#0a0a0a]/5' : ''}`}>
+      {/* Compact row */}
+      <div className="flex items-center justify-between gap-2 px-3 py-3">
+        {/* Checkbox — independent click target */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleDone && onToggleDone(); }}
+          className="shrink-0 p-1 active:scale-90 transition"
+          aria-label={done ? 'Mark incomplete' : 'Mark complete'}
+        >
+          {done
+            ? <Icon name="CheckCircle2" size={20} className="text-[#0a0a0a]" fill="#0a0a0a" fillOpacity={0.15} />
+            : <Icon name="Circle" size={20} className="text-[#0a0a0a]/40" />}
+        </button>
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="flex items-center gap-2.5 min-w-0 flex-1 text-left active:opacity-70"
+        >
+          <span className="text-[10px] font-mono font-bold tabular-nums text-[#0a0a0a]/40 shrink-0 w-6">{String(index).padStart(2,'0')}</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <p className={`text-sm font-semibold text-[#0a0a0a] ${done ? 'line-through opacity-60' : ''}`} style={{ fontFamily: '"Space Grotesk", sans-serif' }}>{ex.name}</p>
+              {hasNote && (
+                <span title="Has personal note" className="shrink-0 w-1.5 h-1.5 rounded-full bg-[#c8202b]" />
+              )}
+            </div>
+            {(ex.sets || ex.reps) && (
+              <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-[#0a0a0a]/60 mt-0.5">
+                {ex.sets ? `${ex.sets} × ${ex.reps}` : ex.reps}
+                {ex.tempo && <span className="ml-2 text-[#0a0a0a]/40">· {ex.tempo}</span>}
+              </p>
+            )}
+          </div>
+          <span className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}>
+            <Icon name="ChevronDown" size={14} className="text-[#0a0a0a]/50" />
+          </span>
+        </button>
+        <button
+          onClick={onVideo}
+          className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 border border-[#0a0a0a] hover:bg-[#0a0a0a] hover:text-[#f5f3ee] active:scale-95 transition text-[10px] font-bold uppercase tracking-[0.2em]"
+        >
+          <Icon name="Play" size={10} fill="currentColor" /> VIDEO
+        </button>
+      </div>
+
+      {/* Expanded detail panel */}
+      {open && (
+        <div className="px-4 pb-4 -mt-1 space-y-3 bg-[#e8e4d9]/40 border-t border-[#0a0a0a]/10">
+          {/* Equipment + target row */}
+          {(ex.equipment || ex.target) && (
+            <div className="pt-3 flex flex-wrap gap-1.5">
+              {ex.equipment && (
+                <span className="inline-flex items-center px-2 py-1 text-[9px] font-mono uppercase tracking-[0.15em] border border-[#0a0a0a]/40 bg-[#f5f3ee]">
+                  EQUIP · {ex.equipment}
+                </span>
+              )}
+              {ex.target && (
+                <span className="inline-flex items-center px-2 py-1 text-[9px] font-mono uppercase tracking-[0.15em] border border-[#0a0a0a]/40 bg-[#f5f3ee]">
+                  TARGET · {ex.target}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Notes */}
+          {ex.notes && (
+            <div className={!ex.equipment && !ex.target ? 'pt-3' : ''}>
+              <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#0a0a0a]/60 mb-1">— NOTES —</p>
+              <p className="text-sm leading-relaxed text-[#0a0a0a]/85" style={{ fontFamily: '"Space Grotesk", sans-serif' }}>{ex.notes}</p>
+            </div>
+          )}
+
+          {/* Form cues */}
+          {ex.cues && ex.cues.length > 0 && (
+            <div>
+              <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#0a0a0a]/60 mb-1">— FORM CUES —</p>
+              <ul className="space-y-1">
+                {ex.cues.map((cue, i) => (
+                  <li key={i} className="text-sm leading-snug text-[#0a0a0a]/85 flex gap-2">
+                    <span className="text-[#c8202b] font-bold shrink-0">→</span>
+                    <span>{cue}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Regression / Progression */}
+          {(ex.regression || ex.progression) && (
+            <div className="grid grid-cols-1 gap-2">
+              {ex.regression && (
+                <div className="border border-[#0a0a0a]/30 bg-[#f5f3ee] p-2">
+                  <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#7a8a8d] mb-1">↓ REGRESSION</p>
+                  <p className="text-xs leading-relaxed text-[#0a0a0a]/85">{ex.regression}</p>
+                </div>
+              )}
+              {ex.progression && (
+                <div className="border border-[#0a0a0a]/30 bg-[#f5f3ee] p-2">
+                  <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#1c2942] mb-1">↑ PROGRESSION</p>
+                  <p className="text-xs leading-relaxed text-[#0a0a0a]/85">{ex.progression}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Pain rule */}
+          {ex.painRule && (
+            <div className="border-l-4 border-[#c8202b] bg-[#c8202b]/5 px-3 py-2">
+              <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#c8202b] mb-0.5">⚠ PAIN RULE</p>
+              <p className="text-xs leading-relaxed text-[#0a0a0a]/85">{ex.painRule}</p>
+            </div>
+          )}
+
+          {/* Timer block */}
+          <div className={!hasDetail ? 'pt-3' : ''}>
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#0a0a0a]/60">— TIMER —</p>
+            </div>
+            {metronome && tempoPhases ? (
+              <RepTempoMetronome
+                phases={tempoPhases}
+                targetReps={targetRepCount}
+                onClose={() => setMetronome(false)}
+              />
+            ) : timer ? (
+              <Timer
+                key={timer.key}
+                initialSeconds={timer.seconds}
+                label={timer.label}
+                onClose={() => setTimer(null)}
+              />
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {tempoPhases && (
+                  <button
+                    onClick={() => { setTimer(null); setMetronome(true); }}
+                    className="px-3 py-2 bg-[#c8202b] text-[#f5f3ee] text-[10px] font-bold uppercase tracking-[0.2em] active:scale-95 transition flex items-center gap-1.5"
+                  >
+                    <Icon name="Activity" size={10} /> TEMPO ({tempoPhases.reduce((a,p) => a + p.seconds, 0)}s/REP)
+                  </button>
+                )}
+                {timedSeconds && (
+                  <button
+                    onClick={() => { setMetronome(false); setTimer({ seconds: timedSeconds, label: `HOLD · ${timedSeconds}s`, key: Date.now() }); }}
+                    className="px-3 py-2 bg-[#0a0a0a] text-[#f5f3ee] text-[10px] font-bold uppercase tracking-[0.2em] active:scale-95 transition flex items-center gap-1.5"
+                  >
+                    <Icon name="Play" size={10} fill="currentColor" /> HOLD {timedSeconds}s
+                  </button>
+                )}
+                {[30, 60, 90, 120].map(s => (
+                  <button
+                    key={s}
+                    onClick={() => { setMetronome(false); setTimer({ seconds: s, label: `REST · ${s}s`, key: Date.now() }); }}
+                    className="px-3 py-2 border-2 border-[#0a0a0a] hover:bg-[#0a0a0a] hover:text-[#f5f3ee] active:scale-95 transition text-[10px] font-bold uppercase tracking-[0.2em] tabular-nums"
+                  >
+                    REST {s}s
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Personal notes input — always shown, always editable */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#0a0a0a]/60">— MY NOTES —</p>
+              {hasNote && (
+                <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-[#c8202b] font-bold">● SAVED</span>
+              )}
+            </div>
+            <textarea
+              value={personalNote}
+              onChange={(e) => onNoteChange && onNoteChange(e.target.value)}
+              placeholder="Loads used, RPE, what worked, what felt off..."
+              rows={2}
+              className="w-full bg-[#f5f3ee] border-2 border-[#0a0a0a] px-3 py-2 text-sm text-[#0a0a0a] placeholder-[#0a0a0a]/30 focus:outline-none focus:border-[#c8202b] resize-y"
+              style={{ fontFamily: '"Space Grotesk", sans-serif' }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- WEEKLY VIEW ----------
+function WeeklyView({ cursor, dayMap, onTap, onToggle }) {
+  const start = startOfWeek(cursor);
+  const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  const todayStr = isoToday();
+  const weekDays = days.map(d => dayMap[d]).filter(Boolean);
+  const vol = weeklyVolume(weekDays);
+
+  return (
+    <div className="space-y-3">
+      {/* Title bar */}
+      <div className="border-b-2 border-[#0a0a0a] pb-2">
+        <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-[#0a0a0a]/60">TRAINING WEEK / {String(vol.completed).padStart(2,'0')}—{String(vol.total).padStart(2,'0')}</p>
+        <h2 className="text-[44px] leading-[0.85] mt-1" style={{ fontFamily: '"Anton", sans-serif' }}>
+          {monthName(start).toUpperCase()} {dayNumber(start)}
+        </h2>
+      </div>
+
+      {/* Weekly stat row — bib numbers */}
+      {weekDays.length > 0 && (
+        <div className="grid grid-cols-3 border-2 border-[#0a0a0a]">
+          <VolStat label="TOTAL KM" value={vol.totalKm || '—'} />
+          <VolStat label="RUNS" value={vol.runs} bordered />
+          <VolStat label="STRENGTH" value={vol.strength} bordered />
+        </div>
+      )}
+
+      {/* Day rows */}
+      <div className="border-2 border-[#0a0a0a]">
+        {days.map((date, idx) => {
+          const day = dayMap[date];
+          const isToday = date === todayStr;
+          const isLast = idx === days.length - 1;
+
+          if (!day) {
+            return (
+              <div key={date} className={`flex items-stretch ${!isLast ? 'border-b border-[#0a0a0a]/15' : ''} ${isToday ? 'bg-[#c8202b]/5' : ''}`}>
+                <DayBadge date={date} isToday={isToday} dim />
+                <div className="flex-1 px-3 py-3 flex items-center">
+                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#0a0a0a]/30">— REST DAY —</span>
+                </div>
+              </div>
+            );
+          }
+          const style = ts(day.type);
+          const iconName = style.icon;
+          const isPast = date < todayStr;
+          const isMissed = isPast && !day.completed && day.type !== 'rest';
+
+          return (
+            <button
+              key={date}
+              onClick={() => onTap(date)}
+              className={`w-full flex items-stretch ${!isLast ? 'border-b border-[#0a0a0a]/15' : ''} text-left active:scale-[0.99] transition relative ${isToday ? 'bg-[#c8202b]/5' : ''} ${isMissed ? 'opacity-50' : ''}`}
+            >
+              {/* Day number column */}
+              <DayBadge date={date} isToday={isToday} accent={style.accent} />
+
+              {/* Type accent strip */}
+              <div className="w-1.5 shrink-0" style={{ background: style.accent }} />
+
+              {/* Content */}
+              <div className="flex-1 px-3 py-3 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <Icon name={iconName} size={12} style={{ color: style.accent }} />
+                  <span className="text-[9px] uppercase tracking-[0.25em] font-bold" style={{ color: style.accent }}>{style.label}</span>
+                  {isMissed && (
+                    <span className="text-[9px] uppercase tracking-[0.2em] font-bold text-[#c8202b]">· MISSED</span>
+                  )}
+                </div>
+                <p className="font-bold text-[#0a0a0a] truncate uppercase tracking-tight" style={{ fontFamily: '"Space Grotesk", sans-serif' }}>{day.title}</p>
+                <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-[#0a0a0a]/60 truncate mt-0.5">
+                  {day.run?.distance || day.strength?.duration || '—'}
+                  {day.run?.zone && ` / ${day.run.zone}`}
+                </p>
+              </div>
+
+              {/* Check column */}
+              <div
+                onClick={(e) => { e.stopPropagation(); onToggle(date); }}
+                className="shrink-0 px-3 flex items-center border-l border-[#0a0a0a]/15"
+              >
+                {day.completed
+                  ? <Icon name="CheckCircle2" size={20} className="text-[#0a0a0a]" fill="#0a0a0a" fillOpacity={0.15} />
+                  : <Icon name="Circle" size={20} className="text-[#0a0a0a]/30" />}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function NextRaceLine({ races, fallback }) {
+  if (!races || races.length === 0) {
+    return <p className="text-xs text-slate-400 truncate">{fallback}</p>;
+  }
+  const today = isoToday();
+  const upcoming = races
+    .filter(r => r.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
+  if (!upcoming) {
+    return <p className="text-xs text-slate-400 truncate">{fallback}</p>;
+  }
+  const days = daysUntil(upcoming.date, today);
+  return (
+    <p className="text-xs text-slate-400 truncate">
+      <span className="mr-1">{upcoming.emoji}</span>
+      <span className="text-emerald-300 font-bold">{days === 0 ? 'TODAY' : `${days} days`}</span>
+      <span className="text-slate-500 mx-1">→</span>
+      <span>{upcoming.name}</span>
+    </p>
+  );
+}
+
+function VolStat({ label, value, bordered }) {
+  return (
+    <div className={`px-2 py-3 text-center ${bordered ? 'border-l-2 border-[#0a0a0a]' : ''}`}>
+      <div className="text-3xl leading-none tabular-nums" style={{ fontFamily: '"Anton", sans-serif' }}>
+        {value}
+      </div>
+      <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-[#0a0a0a]/60 mt-1.5">{label}</div>
+    </div>
+  );
+}
+
+function DayBadge({ date, isToday, dim, accent }) {
+  return (
+    <div className={`w-14 shrink-0 flex flex-col items-center justify-center border-r border-[#0a0a0a]/15 py-2 ${isToday ? 'bg-[#0a0a0a] text-[#f5f3ee]' : dim ? 'text-[#0a0a0a]/30' : 'text-[#0a0a0a]'}`}>
+      <span className="text-[8px] font-mono uppercase tracking-[0.2em] leading-none mb-1">{dayName(date).toUpperCase()}</span>
+      <span className="text-[26px] leading-none tabular-nums" style={{ fontFamily: '"Anton", sans-serif' }}>{dayNumber(date)}</span>
+    </div>
+  );
+}
+
+// ---------- MONTHLY VIEW ----------
+function MonthlyView({ cursor, dayMap, onTap }) {
+  const c = fmtDate(cursor);
+  const year = c.getFullYear();
+  const month = c.getMonth();
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month+1, 0);
+  const startPad = first.getDay();
+  const totalCells = Math.ceil((startPad + last.getDate()) / 7) * 7;
+  const todayStr = isoToday();
+
+  const cells = [];
+  for (let i = 0; i < totalCells; i++) {
+    const dayNum = i - startPad + 1;
+    if (dayNum < 1 || dayNum > last.getDate()) {
+      cells.push(null);
+    } else {
+      const dStr = `${year}-${String(month+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
+      cells.push({ dStr, dayNum });
+    }
+  }
+
+  return (
+    <div>
+      {/* Title bar */}
+      <div className="border-b-2 border-[#0a0a0a] pb-2 mb-3">
+        <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-[#0a0a0a]/60">CALENDAR / 30-DAY VIEW</p>
+        <h2 className="text-[44px] leading-[0.85] mt-1 uppercase" style={{ fontFamily: '"Anton", sans-serif' }}>
+          {first.toLocaleDateString('en-US', { month: 'long' })} <span className="text-[#0a0a0a]/40">'{String(year).slice(2)}</span>
+        </h2>
+      </div>
+
+      {/* Day-of-week header */}
+      <div className="grid grid-cols-7 border-2 border-[#0a0a0a] border-b-0">
+        {['S','M','T','W','T','F','S'].map((d,i) => (
+          <div key={i} className={`text-center text-[10px] font-mono font-bold uppercase tracking-[0.2em] py-2 bg-[#0a0a0a] text-[#f5f3ee] ${i > 0 ? 'border-l border-[#f5f3ee]/20' : ''}`}>{d}</div>
+        ))}
+      </div>
+
+      {/* Calendar grid */}
+      <div className="grid grid-cols-7 border-2 border-[#0a0a0a] border-t-0">
+        {cells.map((cell, i) => {
+          if (!cell) return <div key={i} className={`aspect-square bg-[#e8e4d9] ${i % 7 !== 0 ? 'border-l border-[#0a0a0a]/15' : ''} ${i >= 7 ? 'border-t border-[#0a0a0a]/15' : ''}`} />;
+          const day = dayMap[cell.dStr];
+          const style = day ? ts(day.type) : null;
+          const isToday = cell.dStr === todayStr;
+          const isDarkBg = style && style.text.includes('f5f3ee');
+
+          return (
+            <button
+              key={i}
+              onClick={() => day && onTap(cell.dStr)}
+              disabled={!day}
+              className={`aspect-square relative flex flex-col items-stretch p-1 ${i % 7 !== 0 ? 'border-l border-[#0a0a0a]/15' : ''} ${i >= 7 ? 'border-t border-[#0a0a0a]/15' : ''} ${day ? 'active:scale-95 transition' : ''} ${isToday ? 'ring-2 ring-[#c8202b] ring-inset z-10' : ''}`}
+              style={{ background: day ? style.accent : 'transparent' }}
+            >
+              <span className={`text-[11px] font-bold tabular-nums leading-none ${day ? (isDarkBg ? 'text-[#f5f3ee]' : 'text-[#0a0a0a]') : 'text-[#0a0a0a]/30'}`} style={{ fontFamily: '"Anton", sans-serif' }}>{cell.dayNum}</span>
+              {day && (
+                <>
+                  <span className={`text-[7px] uppercase font-bold tracking-[0.1em] mt-auto truncate w-full ${isDarkBg ? 'text-[#f5f3ee]/80' : 'text-[#0a0a0a]/60'}`}>{style.label}</span>
+                  {day.completed && (
+                    <div className={`absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full ${isDarkBg ? 'bg-[#f5f3ee]' : 'bg-[#0a0a0a]'}`} />
+                  )}
+                </>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="mt-4 border-2 border-[#0a0a0a]">
+        <div className="px-3 py-2 border-b-2 border-[#0a0a0a]">
+          <span className="text-[10px] font-mono uppercase tracking-[0.25em] font-bold">SESSION KEY</span>
+        </div>
+        <div className="p-3 flex flex-wrap gap-1.5">
+          {Object.entries(typeStyles).filter(([k]) => k !== 'custom').map(([k, v]) => (
+            <span key={k} className="inline-flex items-center gap-1.5 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.15em] border border-[#0a0a0a]">
+              <span className="w-2 h-2" style={{ background: v.accent }} />
+              {v.label}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- EDIT MODAL ----------
+function EditModal({ day, shoes = [], onClose, onSave }) {
+  const [draft, setDraft] = useState(() => ({
+    title: day.title || '',
+    type: day.type || 'easy',
+    runDistance: day.run?.distance || '',
+    runZone: day.run?.zone || '',
+    runPace: day.run?.pace || '',
+    runDetail: day.run?.detail || '',
+    strengthDuration: day.strength?.duration || '',
+    shoe: day.shoe || '',
+    tag: day.tag || '',
+    exercises: day.exercises ? day.exercises.map(e => ({ ...e })) : [],
+  }));
+
+  // Build dropdown options including the current shoe (in case it's not in the managed list)
+  const shoeOptions = useMemo(() => {
+    const all = new Set(shoes);
+    if (draft.shoe && draft.shoe !== '—') all.add(draft.shoe);
+    return Array.from(all).sort();
+  }, [shoes, draft.shoe]);
+
+  const updateEx = (i, patch) => {
+    setDraft(d => ({ ...d, exercises: d.exercises.map((e, idx) => idx === i ? { ...e, ...patch } : e) }));
+  };
+  const removeEx = (i) => setDraft(d => ({ ...d, exercises: d.exercises.filter((_, idx) => idx !== i) }));
+  const addEx = () => setDraft(d => ({ ...d, exercises: [...d.exercises, { name: '', sets: '', reps: '' }] }));
+
+  const save = () => {
+    const patch = {
+      title: draft.title,
+      type: draft.type,
+      shoe: draft.shoe,
+      tag: draft.tag,
+      exercises: draft.exercises.filter(e => e.name.trim()),
+    };
+    if (draft.runDistance || draft.runZone || draft.runDetail || draft.runPace) {
+      patch.run = { distance: draft.runDistance, zone: draft.runZone, pace: draft.runPace, detail: draft.runDetail };
+    } else {
+      patch.run = undefined;
+    }
+    if (draft.strengthDuration) {
+      patch.strength = { duration: draft.strengthDuration };
+    } else {
+      patch.strength = undefined;
+    }
+    onSave(patch);
+  };
+
+  return (
+    <Modal onClose={onClose} title="Edit session">
+      <div className="space-y-4">
+        <Field label="Title">
+          <input value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} className="modal-input" />
+        </Field>
+        <Field label="Type">
+          <select value={draft.type} onChange={e => setDraft({ ...draft, type: e.target.value })} className="modal-input">
+            {Object.keys(typeStyles).filter(k => k !== 'custom').map(k => (
+              <option key={k} value={k}>{typeStyles[k].label}</option>
+            ))}
+            <option value="custom">Custom</option>
+          </select>
+        </Field>
+
+        <div className="rounded-xl border border-slate-800 p-3 space-y-2">
+          <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Run details (optional)</p>
+          <Field label="Distance">
+            <input value={draft.runDistance} onChange={e => setDraft({ ...draft, runDistance: e.target.value })} placeholder="e.g. 10 km" className="modal-input" />
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Zone">
+              <input value={draft.runZone} onChange={e => setDraft({ ...draft, runZone: e.target.value })} placeholder="Z2" className="modal-input" />
+            </Field>
+            <Field label="Pace">
+              <input value={draft.runPace} onChange={e => setDraft({ ...draft, runPace: e.target.value })} placeholder="5:35–6:20" className="modal-input" />
+            </Field>
+          </div>
+          <Field label="Detail">
+            <input value={draft.runDetail} onChange={e => setDraft({ ...draft, runDetail: e.target.value })} placeholder="2 km warm up · 3×5 min Z4…" className="modal-input" />
+          </Field>
+        </div>
+
+        <Field label="Strength duration (optional)">
+          <input value={draft.strengthDuration} onChange={e => setDraft({ ...draft, strengthDuration: e.target.value })} placeholder="60 min" className="modal-input" />
+        </Field>
+
+        <Field label="Shoe">
+          <div className="relative">
+            <select
+              value={draft.shoe || ''}
+              onChange={e => setDraft({ ...draft, shoe: e.target.value })}
+              className="modal-input appearance-none pr-8"
+            >
+              <option value="">— None —</option>
+              {shoeOptions.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <Icon name="ChevronDown" size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+          </div>
+          <p className="text-[10px] text-slate-500 mt-1">Manage your shoe list from the gear icon in the header.</p>
+        </Field>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Exercises</p>
+            <button onClick={addEx} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-semibold">
+              <Icon name="Plus" size={12} /> Add
+            </button>
+          </div>
+
+          {/* Exercise group tag (Pre/Post-Run) — grouped with the exercises section */}
+          <div className="mb-2">
+            <Field label="Exercise group tag">
+              <select
+                value={draft.tag || ''}
+                onChange={e => setDraft({ ...draft, tag: e.target.value })}
+                className="modal-input appearance-none"
+              >
+                <option value="">— None —</option>
+                <option value="Pre-Run">Pre-Run</option>
+                <option value="Post-Run">Post-Run</option>
+                <option value="Mobility">Mobility</option>
+                <option value="Activation">Activation</option>
+                <option value="Cooldown">Cooldown</option>
+              </select>
+            </Field>
+          </div>
+
+          <div className="space-y-2">
+            {draft.exercises.map((ex, i) => (
+              <div key={i} className="p-2 rounded-lg bg-slate-950/60 border border-slate-800 space-y-1.5">
+                <div className="flex gap-2">
+                  <input value={ex.name} onChange={e => updateEx(i, { name: e.target.value })} placeholder="Name" className="modal-input flex-1" />
+                  <button onClick={() => removeEx(i)} className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg">
+                    <Icon name="Trash2" size={14} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input value={ex.sets || ''} onChange={e => updateEx(i, { sets: e.target.value })} placeholder="Sets (3)" className="modal-input" />
+                  <input value={ex.reps || ''} onChange={e => updateEx(i, { reps: e.target.value })} placeholder="Reps (12)" className="modal-input" />
+                </div>
+              </div>
+            ))}
+            {draft.exercises.length === 0 && (
+              <p className="text-xs text-slate-600 text-center py-3">No exercises. Tap Add to create one.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-2">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl bg-slate-800 font-semibold">Cancel</button>
+          <button onClick={save} className="flex-1 px-4 py-2.5 rounded-xl bg-emerald-500 text-slate-950 font-bold flex items-center justify-center gap-1">
+            <Icon name="Save" size={16} /> Save
+          </button>
+        </div>
+      </div>
+
+      <style>{`
+        .modal-input {
+          width: 100%;
+          background: #f5f3ee;
+          border: 1.5px solid #0a0a0a;
+          border-radius: 0;
+          padding: 0.6rem 0.75rem;
+          font-size: 0.875rem;
+          color: #0a0a0a;
+          font-family: "Space Grotesk", sans-serif;
+        }
+        .modal-input::placeholder { color: rgba(10,10,10,0.35); }
+        .modal-input:focus { outline: none; border-color: #c8202b; box-shadow: inset 0 0 0 1px #c8202b; }
+        select.modal-input { appearance: none; background-image: linear-gradient(45deg, transparent 50%, #0a0a0a 50%), linear-gradient(135deg, #0a0a0a 50%, transparent 50%); background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 2rem; }
+      `}</style>
+    </Modal>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <label className="block">
+      <span className="block text-[10px] uppercase tracking-wider font-bold text-slate-500 mb-1">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+// ---------- VIDEO MODAL ----------
+function VideoModal({ exercise, onClose }) {
+  const query = encodeURIComponent(`${exercise.name} exercise form tutorial`);
+  const ytSearch = `https://www.youtube.com/results?search_query=${query}`;
+  const ytEmbed = `https://www.youtube.com/embed?listType=search&list=${query}`;
+
+  return (
+    <Modal onClose={onClose} title="Exercise reference">
+      <div className="space-y-3">
+        <div>
+          <h3 className="text-xl font-bold">{exercise.name}</h3>
+          {(exercise.sets || exercise.reps) && (
+            <p className="text-sm text-slate-400 font-mono mt-1">
+              {exercise.sets ? `${exercise.sets} × ${exercise.reps}` : exercise.reps}
+            </p>
+          )}
+        </div>
+
+        <div className="rounded-xl bg-slate-950 border border-slate-800 overflow-hidden aspect-video">
+          <iframe
+            src={ytEmbed}
+            className="w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            title={`${exercise.name} videos`}
+          />
+        </div>
+
+        <a href={ytSearch} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl bg-red-500/20 text-red-300 font-semibold hover:bg-red-500/30 transition">
+          <Icon name="Search" size={16} /> Open all results on YouTube
+        </a>
+
+        <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 text-xs text-amber-200/90 leading-relaxed">
+          <strong className="font-bold">Follow-along videos:</strong> generating a custom video from your prescribed reps requires a backend service (e.g. an AI video API). In the Android build, this button can be wired to that endpoint. For now, it pulls live YouTube tutorials matched to the exercise name.
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ---------- IMPORT / EXPORT MODALS ----------
+function ImportModal({ onClose, onPick }) {
+  return (
+    <Modal onClose={onClose} title="Import training plan">
+      <div className="space-y-3">
+        <div className="border-2 border-[#0a0a0a] p-3 space-y-1.5">
+          <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#0a0a0a]/60">— WHAT GETS UPDATED —</p>
+          <p className="text-sm text-[#0a0a0a]/80 leading-relaxed">Plan structure — exercises, warmups, session titles, run targets.</p>
+        </div>
+        <div className="border-2 border-[#0a0a0a] bg-[#0a0a0a] text-[#f5f3ee] p-3 space-y-1.5">
+          <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#f5f3ee]/60">— WHAT IS PRESERVED —</p>
+          <p className="text-sm leading-relaxed opacity-90">Your exercise notes, loads logged, session feedback, completion checks, and extra activity logs are kept — even if the file doesn't have them.</p>
+        </div>
+        <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-[#0a0a0a]/50 leading-relaxed">A confirm dialog will show exactly how many days have data to preserve before anything changes.</p>
+        <button onClick={onPick} className="w-full px-4 py-3 bg-[#0a0a0a] text-[#f5f3ee] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition text-[11px] uppercase tracking-[0.2em]">
+          <Icon name="Upload" size={16} /> Choose JSON file
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function ExportModal({ onClose, onJSON, onCSV, onHistory }) {
+  return (
+    <Modal onClose={onClose} title="Export training data">
+      <div className="space-y-2">
+        <button onClick={onHistory} className="w-full px-4 py-3 bg-[#c8202b] text-[#f5f3ee] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition text-[11px] uppercase tracking-[0.2em] border-2 border-[#c8202b]">
+          <Icon name="FileJson" size={16} /> History only — for plan regen
+        </button>
+        <button onClick={onJSON} className="w-full px-4 py-3 bg-[#0a0a0a] text-[#f5f3ee] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition text-[11px] uppercase tracking-[0.2em] border-2 border-[#0a0a0a]">
+          <Icon name="FileJson" size={16} /> Full JSON backup
+        </button>
+        <button onClick={onCSV} className="w-full px-4 py-3 bg-[#f5f3ee] text-[#0a0a0a] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition text-[11px] uppercase tracking-[0.2em] border-2 border-[#0a0a0a]">
+          <Icon name="FileSpreadsheet" size={16} /> CSV (Sheets / Excel)
+        </button>
+        <div className="pt-3 space-y-2">
+          <div className="border-l-4 border-[#c8202b] bg-[#c8202b]/5 px-3 py-2">
+            <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#c8202b] mb-1">— HISTORY —</p>
+            <p className="text-xs leading-relaxed text-[#0a0a0a]/85">Past days only, with completion checks, exercise notes, and logged activity. Strips coaching detail. Paste into an LLM along with your goals to regenerate the next phase of the plan based on what actually happened.</p>
+          </div>
+          <div className="border border-[#0a0a0a]/30 px-3 py-2">
+            <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#0a0a0a]/60 mb-1">FULL BACKUP</p>
+            <p className="text-xs leading-relaxed text-[#0a0a0a]/70">Everything — all 87 days, every exercise note, every coaching field. Use to back up before plan changes.</p>
+          </div>
+          <div className="border border-[#0a0a0a]/30 px-3 py-2">
+            <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#0a0a0a]/60 mb-1">CSV</p>
+            <p className="text-xs leading-relaxed text-[#0a0a0a]/70">For bulk-editing in Sheets / Excel. Saves session-level data, not exercise-level details.</p>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ---------- LOG MODAL (Additional run / activity) ----------
+function LogModal({ day, onClose, onSave }) {
+  const [draft, setDraft] = useState({
+    kind: 'Easy run',
+    distance: '',
+    duration: '',
+    note: '',
+  });
+
+  const canSave = draft.distance.trim() || draft.duration.trim() || draft.note.trim();
+
+  const save = () => {
+    if (!canSave) return;
+    onSave({
+      id: Date.now(),
+      kind: draft.kind,
+      distance: draft.distance.trim(),
+      duration: draft.duration.trim(),
+      note: draft.note.trim(),
+      when: new Date().toISOString(),
+    });
+  };
+
+  return (
+    <Modal onClose={onClose} title="Log additional activity">
+      <div className="space-y-4">
+        <p className="text-xs text-slate-400">
+          {fmtDate(day.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+        </p>
+
+        <Field label="Activity type">
+          <div className="relative">
+            <select
+              value={draft.kind}
+              onChange={e => setDraft({ ...draft, kind: e.target.value })}
+              className="modal-input appearance-none pr-8"
+            >
+              <option>Easy run</option>
+              <option>Recovery run</option>
+              <option>Long run</option>
+              <option>Tempo / threshold</option>
+              <option>Intervals</option>
+              <option>Strength</option>
+              <option>Cross-train</option>
+              <option>Walk / hike</option>
+              <option>Mobility / yoga</option>
+              <option>Other</option>
+            </select>
+            <Icon name="ChevronDown" size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+          </div>
+        </Field>
+
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Distance">
+            <input
+              value={draft.distance}
+              onChange={e => setDraft({ ...draft, distance: e.target.value })}
+              placeholder="e.g. 5 km"
+              className="modal-input"
+            />
+          </Field>
+          <Field label="Duration">
+            <input
+              value={draft.duration}
+              onChange={e => setDraft({ ...draft, duration: e.target.value })}
+              placeholder="e.g. 30 min"
+              className="modal-input"
+            />
+          </Field>
+        </div>
+
+        <Field label="Note">
+          <textarea
+            value={draft.note}
+            onChange={e => setDraft({ ...draft, note: e.target.value })}
+            placeholder="How did it feel? Where? With whom?"
+            rows={3}
+            className="modal-input resize-none"
+          />
+        </Field>
+
+        <div className="flex gap-2 pt-2">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl bg-slate-800 font-semibold">Cancel</button>
+          <button
+            onClick={save}
+            disabled={!canSave}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-emerald-500 text-slate-950 font-bold flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Icon name="Save" size={16} /> Save
+          </button>
+        </div>
+      </div>
+
+      <style>{`
+        .modal-input {
+          width: 100%;
+          background: #f5f3ee;
+          border: 1.5px solid #0a0a0a;
+          border-radius: 0;
+          padding: 0.6rem 0.75rem;
+          font-size: 0.875rem;
+          color: #0a0a0a;
+          font-family: "Space Grotesk", sans-serif;
+        }
+        .modal-input::placeholder { color: rgba(10,10,10,0.35); }
+        .modal-input:focus { outline: none; border-color: #c8202b; box-shadow: inset 0 0 0 1px #c8202b; }
+        select.modal-input { appearance: none; background-image: linear-gradient(45deg, transparent 50%, #0a0a0a 50%), linear-gradient(135deg, #0a0a0a 50%, transparent 50%); background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 2rem; }
+      `}</style>
+    </Modal>
+  );
+}
+
+// ---------- SHOE MANAGER MODAL ----------
+function ShoeManagerModal({ shoes, onClose, onSave }) {
+  const [list, setList] = useState(() => [...shoes]);
+  const [newShoe, setNewShoe] = useState('');
+
+  const add = () => {
+    const v = newShoe.trim();
+    if (!v) return;
+    if (list.includes(v)) {
+      setNewShoe('');
+      return;
+    }
+    setList([...list, v]);
+    setNewShoe('');
+  };
+
+  const remove = (i) => setList(list.filter((_, idx) => idx !== i));
+
+  const rename = (i, value) => {
+    setList(list.map((s, idx) => idx === i ? value : s));
+  };
+
+  return (
+    <Modal onClose={onClose} title="Manage shoes">
+      <div className="space-y-4">
+        <p className="text-sm text-slate-400 leading-relaxed">
+          Your shoe rotation. These appear in the shoe dropdown when editing sessions.
+        </p>
+
+        {/* Add new */}
+        <div className="flex gap-2">
+          <input
+            value={newShoe}
+            onChange={e => setNewShoe(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') add(); }}
+            placeholder="Add a shoe (e.g. Nike Vaporfly 3)"
+            className="modal-input flex-1"
+          />
+          <button
+            onClick={add}
+            disabled={!newShoe.trim()}
+            className="px-4 rounded-lg bg-emerald-500 text-slate-950 font-bold flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Icon name="Plus" size={16} />
+          </button>
+        </div>
+
+        {/* List */}
+        <div>
+          <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 mb-2">
+            Your shoes ({list.length})
+          </p>
+          {list.length === 0 ? (
+            <p className="text-xs text-slate-600 text-center py-6">No shoes yet. Add one above.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {list.map((s, i) => (
+                <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800">
+                  <span className="text-xl">👟</span>
+                  <input
+                    value={s}
+                    onChange={e => rename(i, e.target.value)}
+                    className="modal-input flex-1"
+                  />
+                  <button
+                    onClick={() => remove(i)}
+                    className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg"
+                  >
+                    <Icon name="Trash2" size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2 pt-2">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl bg-slate-800 font-semibold">Cancel</button>
+          <button
+            onClick={() => onSave(list.map(s => s.trim()).filter(Boolean))}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-emerald-500 text-slate-950 font-bold flex items-center justify-center gap-1"
+          >
+            <Icon name="Save" size={16} /> Save
+          </button>
+        </div>
+      </div>
+
+      <style>{`
+        .modal-input {
+          width: 100%;
+          background: #f5f3ee;
+          border: 1.5px solid #0a0a0a;
+          border-radius: 0;
+          padding: 0.6rem 0.75rem;
+          font-size: 0.875rem;
+          color: #0a0a0a;
+          font-family: "Space Grotesk", sans-serif;
+        }
+        .modal-input::placeholder { color: rgba(10,10,10,0.35); }
+        .modal-input:focus { outline: none; border-color: #c8202b; box-shadow: inset 0 0 0 1px #c8202b; }
+        select.modal-input { appearance: none; background-image: linear-gradient(45deg, transparent 50%, #0a0a0a 50%), linear-gradient(135deg, #0a0a0a 50%, transparent 50%); background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 2rem; }
+      `}</style>
+    </Modal>
+  );
+}
+
+// ---------- DRIVE SYNC MODAL ----------
+function SyncModal({ status, onClose, onSignIn, onSignOut, onPush, onPull }) {
+  const fmtSync = (iso) => {
+    if (!iso) return 'Never';
+    try {
+      return new Date(iso).toLocaleString();
+    } catch {
+      return iso;
+    }
+  };
+
+  return (
+    <Modal onClose={onClose} title="Google Drive sync">
+      <div className="space-y-4">
+        {/* Status row */}
+        <div className="rounded-xl bg-slate-950/60 border border-slate-800 p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            {status.signedIn ? (
+              <Icon name="Cloud" size={16} className="text-emerald-400" />
+            ) : (
+              <Icon name="CloudOff" size={16} className="text-slate-500" />
+            )}
+            <span className="text-sm font-semibold">
+              {status.signedIn ? 'Signed in' : 'Not signed in'}
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 font-mono">
+            Last sync: {fmtSync(status.lastSync)}
+          </p>
+        </div>
+
+        {!status.signedIn ? (
+          <button
+            onClick={onSignIn}
+            className="w-full px-4 py-3 rounded-xl bg-emerald-500 text-slate-950 font-bold flex items-center justify-center gap-2"
+          >
+            <Icon name="LogIn" size={16} /> Sign in with Google
+          </button>
+        ) : (
+          <div className="space-y-2">
+            <button
+              onClick={onPush}
+              disabled={status.syncing}
+              className="w-full px-4 py-3 rounded-xl bg-emerald-500 text-slate-950 font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {status.syncing ? <Icon name="RefreshCw" size={16} className="animate-spin" /> : <Icon name="Upload" size={16} />}
+              <span>Push to Drive</span>
+            </button>
+            <button
+              onClick={onPull}
+              disabled={status.syncing}
+              className="w-full px-4 py-3 rounded-xl bg-slate-800 text-slate-100 font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {status.syncing ? <Icon name="RefreshCw" size={16} className="animate-spin" /> : <Icon name="Download" size={16} />}
+              <span>Pull from Drive</span>
+            </button>
+            <button
+              onClick={onSignOut}
+              className="w-full px-4 py-2 rounded-xl bg-slate-900 text-slate-400 text-sm font-semibold flex items-center justify-center gap-2"
+            >
+              <Icon name="LogOut" size={14} /> Sign out
+            </button>
+          </div>
+        )}
+
+        <div className="rounded-xl bg-slate-950/60 border border-slate-800 p-3 text-xs text-slate-400 leading-relaxed space-y-1.5">
+          <p>
+            <strong className="text-slate-200">How it works:</strong> your plan is stored in a hidden
+            app folder on your Drive — invisible to your normal Drive view, only this app can read it.
+          </p>
+          <p>
+            <strong className="text-slate-200">Push</strong> uploads your local plan, overwriting Drive's copy.
+            <strong className="text-slate-200"> Pull</strong> replaces your local plan with Drive's copy.
+          </p>
+          <p className="text-amber-300/80">
+            ⚠️ Drive sync requires the native Android build with OAuth configured. See <code>docs/google-drive-setup.md</code>.
+          </p>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ---------- BASE MODAL ----------
+function Modal({ children, onClose, title }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-2 bg-[#0a0a0a]/60 backdrop-blur-sm animate-[fadeIn_0.2s]" onClick={onClose}>
+      <div
+        className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-[#f5f3ee] border-2 border-[#0a0a0a] shadow-2xl animate-[slideUp_0.25s_cubic-bezier(0.4,0,0.2,1)]"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="sticky top-0 z-10 flex items-stretch bg-[#0a0a0a] text-[#f5f3ee] border-b-2 border-[#0a0a0a]">
+          <h3 className="flex-1 px-4 py-3 text-sm uppercase tracking-[0.25em] font-bold" style={{ fontFamily: '"Anton", sans-serif', letterSpacing: '0.15em' }}>{title}</h3>
+          <button onClick={onClose} className="px-4 hover:bg-[#c8202b] active:scale-95 transition border-l-2 border-[#f5f3ee]/20">
+            <Icon name="X" size={18} />
+          </button>
+        </div>
+        <div className="p-4">{children}</div>
+      </div>
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+      `}</style>
+    </div>
+  );
+}
+
+
+    // ====================== MOUNT ======================
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(App));
+  </script>
+</body>
+</html>
