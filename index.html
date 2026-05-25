@@ -533,9 +533,13 @@ const initialPlan = {
       { zone: 'Z6', name: 'VO2 Max',  range: '3:35 – 3:55', color: '#eab308' },
     ],
     shoes: ['Eliot Runner', 'Evo SL Exo', 'Evo SL', 'ATR', 'Race choice'],
+    mantras: ['EVOLVE RUNNING', 'FIND THE BALANCE', 'KEEP GOING'],
   },
   days: buildDays(),
 };
+
+// Marquee fallback when no custom mantras are set.
+const DEFAULT_MANTRAS = ['EVOLVE RUNNING', 'FIND THE BALANCE', 'KEEP GOING'];
 
 function buildDays() {
   // Each day: { date 'YYYY-MM-DD', label, dayIndex, type, run, strength, exercises, shoe, notes, completed, feedback }
@@ -880,7 +884,7 @@ function daysUntil(targetIso, fromIso) {
 function App() {
   const [plan, setPlan] = useState(initialPlan);
   const [view, setView] = useState('weekly'); // daily | weekly | monthly
-  const [cursor, setCursor] = useState('2026-04-26'); // current focus date
+  const [cursor, setCursor] = useState(isoToday()); // current focus date — opens on today
   const [editing, setEditing] = useState(null); // { dateStr } currently editing
   const [showImport, setShowImport] = useState(false);
   const [showExport, setShowExport] = useState(false);
@@ -913,6 +917,9 @@ function App() {
           await localSavePlan(initialPlan);
         }
         const meta = await getMeta();
+        if (meta.lastView === 'weekly' || meta.lastView === 'monthly' || meta.lastView === 'daily') {
+          setView(meta.lastView);
+        }
         const signedIn = await driveIsSignedIn();
         setSyncStatus(s => ({ ...s, signedIn, lastSync: meta.lastDriveSync ?? null }));
         setHydrated(true);
@@ -928,6 +935,16 @@ function App() {
     const t = setTimeout(() => { localSavePlan(plan).catch(console.error); }, 300);
     return () => clearTimeout(t);
   }, [plan, hydrated]);
+
+  // Remember the last-used view so the next launch restores it.
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      const meta = JSON.parse(localStorage.getItem(META_KEY) || '{}');
+      meta.lastView = view;
+      localStorage.setItem(META_KEY, JSON.stringify(meta));
+    } catch {}
+  }, [view, hydrated]);
 
   // ---------- DRIVE SYNC ACTIONS ----------
   const handleDriveSignIn = async () => {
@@ -1145,6 +1162,9 @@ function App() {
 
           // Build a lookup of the current plan's user-generated data, keyed by date
           const existingByDate = {};
+          // Pinned exercise videos, keyed by date then exercise name, so manually
+          // entered links survive importing a regenerated plan that lacks them.
+          const existingVideos = {};
           (plan.days || []).forEach(d => {
             const userFields = {};
             if (d.completed)          userFields.completed = d.completed;
@@ -1155,6 +1175,9 @@ function App() {
             if (d.exerciseDone && Object.keys(d.exerciseDone).length)
                                       userFields.exerciseDone = d.exerciseDone;
             if (Object.keys(userFields).length) existingByDate[d.date] = userFields;
+            const vids = {};
+            (d.exercises || []).forEach(ex => { if (ex.name && ex.video) vids[ex.name] = ex.video; });
+            if (Object.keys(vids).length) existingVideos[d.date] = vids;
           });
 
           // Count how many days have data worth preserving
@@ -1162,15 +1185,17 @@ function App() {
             u.exerciseNotes || u.feedback || u.loggedExtras?.length || u.exerciseDone
           ).length;
           const daysCompleted = Object.values(existingByDate).filter(u => u.completed).length;
+          const daysWithVideos = Object.keys(existingVideos).length;
 
           // Build confirm message
           const lines = [`Import "${file.name}"?`, ''];
           lines.push(`${parsed.days.length} days in the new file.`);
-          if (daysWithNotes > 0 || daysCompleted > 0) {
+          if (daysWithNotes > 0 || daysCompleted > 0 || daysWithVideos > 0) {
             lines.push('');
             lines.push('Your existing data that will be KEPT:');
             if (daysCompleted > 0)  lines.push(`  ✓ ${daysCompleted} session(s) marked complete`);
             if (daysWithNotes > 0)  lines.push(`  ✓ Exercise notes & logs on ${daysWithNotes} day(s)`);
+            if (daysWithVideos > 0) lines.push(`  ✓ Pinned exercise videos on ${daysWithVideos} day(s)`);
             lines.push('');
             lines.push('Plan structure (exercises, warmups, titles) will be updated from the file.');
           } else {
@@ -1179,10 +1204,19 @@ function App() {
 
           if (!window.confirm(lines.join('\n'))) return;
 
-          // Merge: incoming structure + preserved user fields for matching dates
+          // Merge: incoming structure + preserved user fields for matching dates.
+          // Pinned videos are re-attached by exercise name; a link in the incoming
+          // file wins over a previously pinned one.
           const mergedDays = parsed.days.map(incoming => {
             const existing = existingByDate[incoming.date] || {};
-            return { ...incoming, ...existing };
+            const vids = existingVideos[incoming.date];
+            let exercises = incoming.exercises;
+            if (exercises && vids) {
+              exercises = exercises.map(ex =>
+                (!ex.video && ex.name && vids[ex.name]) ? { ...ex, video: vids[ex.name] } : ex
+              );
+            }
+            return { ...incoming, ...existing, ...(exercises ? { exercises } : {}) };
           });
 
           setPlan({ ...parsed, days: mergedDays });
@@ -1327,7 +1361,7 @@ function App() {
                   <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-[#c8202b] rounded-full animate-pulse" />
                 )}
               </button>
-              <button onClick={() => setShowShoes(true)} className="p-2 border border-[#0a0a0a]/30 hover:border-[#0a0a0a] active:scale-95 transition" aria-label="Shoes">
+              <button onClick={() => setShowShoes(true)} className="p-2 border border-[#0a0a0a]/30 hover:border-[#0a0a0a] active:scale-95 transition" aria-label="Settings">
                 <Icon name="Settings" size={16} />
               </button>
               <button onClick={() => setShowExport(true)} className="p-2 border border-[#0a0a0a]/30 hover:border-[#0a0a0a] active:scale-95 transition" aria-label="Export">
@@ -1385,9 +1419,16 @@ function App() {
         {/* Marquee strip — Bandit signature element */}
         <div className="border-t border-[#0a0a0a] bg-[#0a0a0a] text-[#f5f3ee] overflow-hidden">
           <div className="flex whitespace-nowrap py-1.5 marquee" style={{ fontFamily: '"Anton", sans-serif' }}>
-            {Array.from({length: 8}).map((_, i) => (
-              <span key={i} className="text-sm tracking-[0.15em] px-3 shrink-0">EVOLVE RUNNING <span className="text-[#c8202b]">→</span> FIND THE BALANCE <span className="text-[#c8202b]">→</span> KEEP GOING <span className="text-[#c8202b]">→</span></span>
-            ))}
+            {(() => {
+              const mantras = (plan.meta.mantras && plan.meta.mantras.length) ? plan.meta.mantras : DEFAULT_MANTRAS;
+              return Array.from({length: 8}).map((_, i) => (
+                <span key={i} className="text-sm tracking-[0.15em] px-3 shrink-0">
+                  {mantras.map((m, j) => (
+                    <React.Fragment key={j}>{m} <span className="text-[#c8202b]">→</span> </React.Fragment>
+                  ))}
+                </span>
+              ));
+            })()}
           </div>
         </div>
       </header>
@@ -1481,11 +1522,12 @@ function App() {
         />
       )}
       {showShoes && (
-        <ShoeManagerModal
+        <SettingsModal
           shoes={plan.meta.shoes || []}
+          mantras={plan.meta.mantras ?? DEFAULT_MANTRAS}
           onClose={() => setShowShoes(false)}
-          onSave={(shoes) => {
-            setPlan(p => ({ ...p, meta: { ...p.meta, shoes } }));
+          onSave={({ shoes, mantras }) => {
+            setPlan(p => ({ ...p, meta: { ...p.meta, shoes, mantras } }));
             setShowShoes(false);
           }}
         />
@@ -1585,7 +1627,7 @@ function DailyView({ date, day, onToggle, onEdit, onVideo, onLog, onCoach, onZon
             <div className="mt-4 space-y-2">
               {/* Big distance — bib number style */}
               <div className="flex items-baseline gap-3 flex-wrap">
-                <span className="text-[56px] leading-[0.85] tabular-nums" style={{ fontFamily: '"Anton", sans-serif' }}>{day.run.distance}</span>
+                <span className="text-[56px] leading-[0.95] tabular-nums break-words max-w-full" style={{ fontFamily: '"Anton", sans-serif' }}>{day.run.distance}</span>
               </div>
               {/* Data row */}
               <div className="flex items-center gap-3 text-[10px] font-mono uppercase tracking-[0.15em] flex-wrap">
@@ -1605,7 +1647,7 @@ function DailyView({ date, day, onToggle, onEdit, onVideo, onLog, onCoach, onZon
 
           {day.strength && (
             <div className="mt-4 flex items-baseline gap-3">
-              <span className="text-[56px] leading-[0.85] tabular-nums" style={{ fontFamily: '"Anton", sans-serif' }}>{day.strength.duration}</span>
+              <span className="text-[56px] leading-[0.95] tabular-nums break-words max-w-full" style={{ fontFamily: '"Anton", sans-serif' }}>{day.strength.duration}</span>
               <span className="text-[10px] font-mono uppercase tracking-[0.2em] opacity-70">SESSION</span>
             </div>
           )}
@@ -1636,6 +1678,34 @@ function DailyView({ date, day, onToggle, onEdit, onVideo, onLog, onCoach, onZon
       {/* Warmup section — collapsible */}
       {day.warmup && day.warmup.items && day.warmup.items.length > 0 && (
         <WarmupBlock warmup={day.warmup} />
+      )}
+
+      {/* RUN section — shown in the workout flow when a day pairs a run with exercises */}
+      {day.run && day.exercises && day.exercises.length > 0 && (
+        <div className="border-2 border-[#0a0a0a] bg-[#f5f3ee]">
+          <div className="flex items-stretch border-b-2 border-[#0a0a0a]">
+            <div className="flex-1 px-4 py-2 flex items-center gap-2">
+              <Icon name="Footprints" size={14} />
+              <span className="text-[10px] uppercase tracking-[0.25em] font-bold">RUN</span>
+            </div>
+            {day.run.zone && (
+              <div className="px-4 py-2 border-l-2 border-[#0a0a0a] text-[10px] font-mono font-bold tracking-[0.15em]">
+                ZONE {day.run.zone}
+              </div>
+            )}
+          </div>
+          <div className="px-4 py-3">
+            <div className="flex items-baseline gap-3 flex-wrap">
+              {day.run.distance && (
+                <span className="text-[40px] leading-[0.95] tabular-nums break-words max-w-full" style={{ fontFamily: '"Anton", sans-serif' }}>{day.run.distance}</span>
+              )}
+              {day.run.pace && (
+                <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-[#0a0a0a]/60">PACE · {day.run.pace}/KM</span>
+              )}
+            </div>
+            {day.run.detail && <p className="text-sm leading-relaxed mt-2 text-[#0a0a0a]/80">{day.run.detail}</p>}
+          </div>
+        </div>
       )}
 
       {/* Exercises section */}
@@ -2824,6 +2894,7 @@ function EditModal({ day, shoes = [], onClose, onSave }) {
                   <input value={ex.sets || ''} onChange={e => updateEx(i, { sets: e.target.value })} placeholder="Sets (3)" className="modal-input" />
                   <input value={ex.reps || ''} onChange={e => updateEx(i, { reps: e.target.value })} placeholder="Reps (12)" className="modal-input" />
                 </div>
+                <input value={ex.video || ''} onChange={e => updateEx(i, { video: e.target.value })} placeholder="YouTube link (optional — pins the video)" className="modal-input" />
               </div>
             ))}
             {draft.exercises.length === 0 && (
@@ -2869,39 +2940,66 @@ function Field({ label, children }) {
 }
 
 // ---------- VIDEO MODAL ----------
+// Pull a YouTube video ID out of a bare ID or any common URL form.
+function youtubeId(input) {
+  if (!input) return null;
+  const s = String(input).trim();
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  const patterns = [
+    /[?&]v=([A-Za-z0-9_-]{11})/,
+    /youtu\.be\/([A-Za-z0-9_-]{11})/,
+    /youtube\.com\/embed\/([A-Za-z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([A-Za-z0-9_-]{11})/,
+  ];
+  for (const p of patterns) {
+    const m = s.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
 function VideoModal({ exercise, onClose }) {
   const query = encodeURIComponent(`${exercise.name} exercise form tutorial`);
   const ytSearch = `https://www.youtube.com/results?search_query=${query}`;
-  const ytEmbed = `https://www.youtube.com/embed?listType=search&list=${query}`;
+  const vid = youtubeId(exercise.video);
+  // A pinned video ID embeds reliably; the search fallback is best-effort.
+  const embedSrc = vid
+    ? `https://www.youtube-nocookie.com/embed/${vid}?rel=0`
+    : `https://www.youtube.com/embed?listType=search&list=${query}`;
 
   return (
     <Modal onClose={onClose} title="Exercise reference">
       <div className="space-y-3">
-        <div>
-          <h3 className="text-xl font-bold">{exercise.name}</h3>
+        <div className="border-b-2 border-[#0a0a0a] pb-2">
+          <h3 className="text-[24px] leading-[0.95] uppercase break-words" style={{ fontFamily: '"Anton", sans-serif', letterSpacing: '0.01em' }}>{exercise.name}</h3>
           {(exercise.sets || exercise.reps) && (
-            <p className="text-sm text-slate-400 font-mono mt-1">
+            <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#0a0a0a]/60 mt-1.5">
               {exercise.sets ? `${exercise.sets} × ${exercise.reps}` : exercise.reps}
             </p>
           )}
         </div>
 
-        <div className="rounded-xl bg-slate-950 border border-slate-800 overflow-hidden aspect-video">
+        <div className="border-2 border-[#0a0a0a] bg-[#0a0a0a] overflow-hidden aspect-video">
           <iframe
-            src={ytEmbed}
+            src={embedSrc}
             className="w-full h-full"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
-            title={`${exercise.name} videos`}
+            title={`${exercise.name} video`}
           />
         </div>
 
-        <a href={ytSearch} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl bg-red-500/20 text-red-300 font-semibold hover:bg-red-500/30 transition">
-          <Icon name="Search" size={16} /> Open all results on YouTube
+        <a href={ytSearch} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-[#c8202b] text-[#f5f3ee] font-bold active:scale-[0.98] transition text-[11px] uppercase tracking-[0.2em] border-2 border-[#c8202b]">
+          <Icon name="Search" size={14} /> Open on YouTube
         </a>
 
-        <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 text-xs text-amber-200/90 leading-relaxed">
-          <strong className="font-bold">Follow-along videos:</strong> generating a custom video from your prescribed reps requires a backend service (e.g. an AI video API). In the Android build, this button can be wired to that endpoint. For now, it pulls live YouTube tutorials matched to the exercise name.
+        <div className="border-l-4 border-[#0a0a0a] bg-[#e8e4d9] px-3 py-2.5">
+          <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#0a0a0a]/60 mb-1">— TIP —</p>
+          <p className="text-xs leading-relaxed text-[#0a0a0a]/80">
+            {vid
+              ? 'Showing the clip pinned to this exercise.'
+              : 'No clip pinned yet — this is a live YouTube search, which sometimes can’t embed. To pin a video that always plays here, edit the session and paste a YouTube link into the exercise.'}
+          </p>
         </div>
       </div>
     </Modal>
@@ -3074,73 +3172,79 @@ function LogModal({ day, onClose, onSave }) {
   );
 }
 
-// ---------- SHOE MANAGER MODAL ----------
-function ShoeManagerModal({ shoes, onClose, onSave }) {
-  const [list, setList] = useState(() => [...shoes]);
+// ---------- SETTINGS MODAL (mantras + shoes) ----------
+function SettingsModal({ shoes, mantras, onClose, onSave }) {
+  const [shoeList, setShoeList] = useState(() => [...shoes]);
   const [newShoe, setNewShoe] = useState('');
+  const [mantraList, setMantraList] = useState(() => (mantras && mantras.length ? [...mantras] : []));
+  const [newMantra, setNewMantra] = useState('');
 
-  const add = () => {
+  const addShoe = () => {
     const v = newShoe.trim();
     if (!v) return;
-    if (list.includes(v)) {
-      setNewShoe('');
-      return;
-    }
-    setList([...list, v]);
+    if (shoeList.includes(v)) { setNewShoe(''); return; }
+    setShoeList([...shoeList, v]);
     setNewShoe('');
   };
+  const removeShoe = (i) => setShoeList(shoeList.filter((_, idx) => idx !== i));
+  const renameShoe = (i, value) => setShoeList(shoeList.map((s, idx) => idx === i ? value : s));
 
-  const remove = (i) => setList(list.filter((_, idx) => idx !== i));
-
-  const rename = (i, value) => {
-    setList(list.map((s, idx) => idx === i ? value : s));
+  const addMantra = () => {
+    const v = newMantra.trim();
+    if (!v) return;
+    setMantraList([...mantraList, v]);
+    setNewMantra('');
   };
+  const removeMantra = (i) => setMantraList(mantraList.filter((_, idx) => idx !== i));
+  const renameMantra = (i, value) => setMantraList(mantraList.map((s, idx) => idx === i ? value : s));
+
+  const save = () => onSave({
+    shoes: shoeList.map(s => s.trim()).filter(Boolean),
+    mantras: mantraList.map(s => s.trim()).filter(Boolean),
+  });
 
   return (
-    <Modal onClose={onClose} title="Manage shoes">
-      <div className="space-y-4">
-        <p className="text-sm text-slate-400 leading-relaxed">
-          Your shoe rotation. These appear in the shoe dropdown when editing sessions.
-        </p>
+    <Modal onClose={onClose} title="Settings">
+      <div className="space-y-6">
+        {/* Mantras */}
+        <div className="space-y-3">
+          <div className="border-b-2 border-[#0a0a0a] pb-1.5">
+            <p className="text-[10px] font-mono uppercase tracking-[0.25em] font-bold">— MARQUEE MANTRAS —</p>
+            <p className="text-xs text-[#0a0a0a]/60 mt-1 leading-relaxed">The scrolling words under the wordmark. Add your own.</p>
+          </div>
 
-        {/* Add new */}
-        <div className="flex gap-2">
-          <input
-            value={newShoe}
-            onChange={e => setNewShoe(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') add(); }}
-            placeholder="Add a shoe (e.g. Nike Vaporfly 3)"
-            className="modal-input flex-1"
-          />
-          <button
-            onClick={add}
-            disabled={!newShoe.trim()}
-            className="px-4 rounded-lg bg-emerald-500 text-slate-950 font-bold flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Icon name="Plus" size={16} />
-          </button>
-        </div>
+          <div className="flex gap-2">
+            <input
+              value={newMantra}
+              onChange={e => setNewMantra(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addMantra(); }}
+              placeholder="Add a mantra (e.g. TRUST THE PROCESS)"
+              className="modal-input flex-1"
+            />
+            <button
+              onClick={addMantra}
+              disabled={!newMantra.trim()}
+              className="px-4 bg-[#0a0a0a] text-[#f5f3ee] font-bold flex items-center gap-1 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Icon name="Plus" size={16} />
+            </button>
+          </div>
 
-        {/* List */}
-        <div>
-          <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 mb-2">
-            Your shoes ({list.length})
-          </p>
-          {list.length === 0 ? (
-            <p className="text-xs text-slate-600 text-center py-6">No shoes yet. Add one above.</p>
+          {mantraList.length === 0 ? (
+            <p className="text-xs text-[#0a0a0a]/50 text-center py-4 border border-[#0a0a0a]/20">No mantras — the default set will scroll.</p>
           ) : (
             <div className="space-y-1.5">
-              {list.map((s, i) => (
-                <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/60 border border-slate-800">
-                  <span className="text-xl">👟</span>
+              {mantraList.map((m, i) => (
+                <div key={i} className="flex items-center gap-2 p-2 border border-[#0a0a0a]/40 bg-[#f5f3ee]">
+                  <span className="text-[#c8202b] font-bold shrink-0 px-1">→</span>
                   <input
-                    value={s}
-                    onChange={e => rename(i, e.target.value)}
+                    value={m}
+                    onChange={e => renameMantra(i, e.target.value)}
                     className="modal-input flex-1"
                   />
                   <button
-                    onClick={() => remove(i)}
-                    className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg"
+                    onClick={() => removeMantra(i)}
+                    className="p-2 text-[#0a0a0a]/40 hover:text-[#c8202b] transition"
                   >
                     <Icon name="Trash2" size={14} />
                   </button>
@@ -3150,11 +3254,59 @@ function ShoeManagerModal({ shoes, onClose, onSave }) {
           )}
         </div>
 
-        <div className="flex gap-2 pt-2">
-          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl bg-slate-800 font-semibold">Cancel</button>
+        {/* Shoes */}
+        <div className="space-y-3">
+          <div className="border-b-2 border-[#0a0a0a] pb-1.5">
+            <p className="text-[10px] font-mono uppercase tracking-[0.25em] font-bold">— SHOE ROTATION —</p>
+            <p className="text-xs text-[#0a0a0a]/60 mt-1 leading-relaxed">These appear in the shoe dropdown when editing sessions.</p>
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              value={newShoe}
+              onChange={e => setNewShoe(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addShoe(); }}
+              placeholder="Add a shoe (e.g. Nike Vaporfly 3)"
+              className="modal-input flex-1"
+            />
+            <button
+              onClick={addShoe}
+              disabled={!newShoe.trim()}
+              className="px-4 bg-[#0a0a0a] text-[#f5f3ee] font-bold flex items-center gap-1 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Icon name="Plus" size={16} />
+            </button>
+          </div>
+
+          {shoeList.length === 0 ? (
+            <p className="text-xs text-[#0a0a0a]/50 text-center py-4 border border-[#0a0a0a]/20">No shoes yet. Add one above.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {shoeList.map((s, i) => (
+                <div key={i} className="flex items-center gap-2 p-2 border border-[#0a0a0a]/40 bg-[#f5f3ee]">
+                  <span className="text-xl shrink-0">👟</span>
+                  <input
+                    value={s}
+                    onChange={e => renameShoe(i, e.target.value)}
+                    className="modal-input flex-1"
+                  />
+                  <button
+                    onClick={() => removeShoe(i)}
+                    className="p-2 text-[#0a0a0a]/40 hover:text-[#c8202b] transition"
+                  >
+                    <Icon name="Trash2" size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 border-2 border-[#0a0a0a] bg-[#f5f3ee] text-[#0a0a0a] font-bold uppercase tracking-[0.15em] text-[11px] active:scale-[0.98] transition">Cancel</button>
           <button
-            onClick={() => onSave(list.map(s => s.trim()).filter(Boolean))}
-            className="flex-1 px-4 py-2.5 rounded-xl bg-emerald-500 text-slate-950 font-bold flex items-center justify-center gap-1"
+            onClick={save}
+            className="flex-1 px-4 py-2.5 border-2 border-[#0a0a0a] bg-[#0a0a0a] text-[#f5f3ee] font-bold flex items-center justify-center gap-1.5 uppercase tracking-[0.15em] text-[11px] active:scale-[0.98] transition"
           >
             <Icon name="Save" size={16} /> Save
           </button>
