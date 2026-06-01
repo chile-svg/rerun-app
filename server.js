@@ -1,6 +1,6 @@
 const path = require('path');
 const express = require('express');
-const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenAI, Type } = require('@google/genai');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,42 +14,41 @@ app.use(express.json({ limit: '50kb' }));
 // /exercise-library.js, /manifest.json, icons, etc.
 app.use(express.static(ROOT));
 
-// GET /coach serves coach.html (the file is owned by another agent and may not
-// exist yet — the route is wired regardless).
+// GET /coach serves the coach-mode page.
 app.get('/coach', (req, res) => {
   res.sendFile(path.join(ROOT, 'coach.html'));
 });
 
-// --- Anthropic structured-output schema --------------------------------------
-// Every object needs additionalProperties:false and all props in `required`.
-// No min/max/minLength constraints (unsupported by structured outputs).
+// --- Gemini structured-output schema -----------------------------------------
+// Gemini's responseSchema is an OpenAPI subset: use the Type enum, list every
+// field in `required`, and use propertyOrdering to fix the output order.
 const PARSE_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
+  type: Type.OBJECT,
   properties: {
     exercises: {
-      type: 'array',
+      type: Type.ARRAY,
       items: {
-        type: 'object',
-        additionalProperties: false,
+        type: Type.OBJECT,
         properties: {
-          name: { type: 'string' },
-          sets: { type: 'integer' },
-          reps: { type: 'string' },
-          weight: { type: 'string' },
-          day: { type: 'string' },
-          notes: { type: 'string' },
-          raw: { type: 'string' },
+          name: { type: Type.STRING },
+          sets: { type: Type.INTEGER },
+          reps: { type: Type.STRING },
+          weight: { type: Type.STRING },
+          day: { type: Type.STRING },
+          notes: { type: Type.STRING },
+          raw: { type: Type.STRING },
         },
         required: ['name', 'sets', 'reps', 'weight', 'day', 'notes', 'raw'],
+        propertyOrdering: ['name', 'sets', 'reps', 'weight', 'day', 'notes', 'raw'],
       },
     },
-    summary: { type: 'string' },
+    summary: { type: Type.STRING },
   },
   required: ['exercises', 'summary'],
+  propertyOrdering: ['exercises', 'summary'],
 };
 
-// Large, stable system prompt — kept free of dates/IDs so prompt caching works.
+// Stable system instruction. Provider-agnostic — describes the parsing task.
 const SYSTEM_PROMPT = `You are a parser for strength & conditioning workout prescriptions written by coaches in shorthand or natural language. Your job is to extract every distinct exercise the coach prescribed into structured data for a downstream training app that looks up exercise images and videos.
 
 You will receive a coach's free-text prescription. Parse it into a JSON object matching the provided schema.
@@ -82,12 +81,16 @@ leave them empty or default (do not guess values).
 The summary is a short human-readable sentence, e.g.
 "Parsed 5 exercises across 2 days." Count the exercises and distinct days you found.`;
 
+// Default Gemini model. Flash is fast and cheap and plenty for extraction;
+// swap to gemini-2.5-pro for harder parsing if you ever need it.
+const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+
 // --- POST /api/parse ---------------------------------------------------------
 app.post('/api/parse', async (req, res) => {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.GEMINI_API_KEY) {
     return res.status(503).json({
       error:
-        'Server is missing ANTHROPIC_API_KEY. Set it as an environment variable to enable parsing.',
+        'Server is missing GEMINI_API_KEY. Set it as an environment variable to enable parsing.',
     });
   }
 
@@ -103,28 +106,21 @@ app.post('/api/parse', async (req, res) => {
     : text;
 
   try {
-    const client = new Anthropic(); // reads ANTHROPIC_API_KEY from env
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY.trim() });
 
-    const message = await client.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 4096,
-      thinking: { type: 'disabled' },
-      system: [
-        {
-          type: 'text',
-          text: SYSTEM_PROMPT,
-          cache_control: { type: 'ephemeral' },
-        },
-      ],
-      output_config: {
-        effort: 'low',
-        format: { type: 'json_schema', schema: PARSE_SCHEMA },
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      contents: userText,
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        temperature: 0,
+        responseMimeType: 'application/json',
+        responseSchema: PARSE_SCHEMA,
       },
-      messages: [{ role: 'user', content: userText }],
     });
 
-    const block = message.content.find((b) => b.type === 'text');
-    const parsed = JSON.parse(block.text);
+    // response.text is the concatenated JSON string when responseMimeType is JSON.
+    const parsed = JSON.parse(response.text);
     return res.status(200).json(parsed);
   } catch (err) {
     console.error('POST /api/parse failed:', err);

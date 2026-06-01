@@ -463,7 +463,7 @@
           try { data = await res.json(); } catch (_) { data = {}; }
           if (!res.ok) {
             if (res.status === 503) {
-              setError(data.error || 'The server is missing its API key. Ask whoever runs the server to set ANTHROPIC_API_KEY, then try again.');
+              setError(data.error || 'The server is missing its API key. Ask whoever runs the server to set GEMINI_API_KEY, then try again.');
             } else {
               setError(data.error || `Request failed (${res.status}). Your text is kept — try again.`);
             }
