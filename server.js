@@ -19,6 +19,11 @@ app.get('/coach', (req, res) => {
   res.sendFile(path.join(ROOT, 'coach.html'));
 });
 
+// GET /physio-pitch serves the physio-facing pitch page.
+app.get('/physio-pitch', (req, res) => {
+  res.sendFile(path.join(ROOT, 'physio-pitch.html'));
+});
+
 // --- Gemini structured-output schema -----------------------------------------
 // Gemini's responseSchema is an OpenAPI subset: use the Type enum, list every
 // field in `required`, and use propertyOrdering to fix the output order.
