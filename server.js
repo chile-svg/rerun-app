@@ -63,7 +63,7 @@ const PARSE_SCHEMA = {
 // Stable system instruction. Provider-agnostic — describes the parsing task.
 const SYSTEM_PROMPT = `You are a parser for strength & conditioning workout prescriptions written by coaches in shorthand or natural language. Your job is to extract every distinct exercise the coach prescribed into structured data for a downstream training app that looks up exercise images and videos.
 
-You will receive a coach's free-text prescription. Parse it into a JSON object matching the provided schema.
+You will receive a coach's free-text prescription. Parse it into a JSON object matching the provided schema. The prescription may be preceded by an "Additional context:" block describing the ATHLETE — condition, injuries / rehab status, experience level, goals, equipment, pain or contraindications. Use that context to tailor the coaching cues (it does not change which exercises were prescribed).
 
 How to interpret common formats:
 - "Back squat 4x8 @80kg" => name "Back Squat", sets 4, reps "8", weight "80 kg".
@@ -90,8 +90,12 @@ Field rules:
   fault to avoid. Physio / S&C quality, each a concise phrase (e.g.
   "Brace your core before you descend", "Keep shins vertical", "Drive through
   mid-foot", "Don't let the knees cave"). ALWAYS generate good cues from the
-  canonical exercise even if the coach wrote none; tailor them if the coach gave
-  specific instructions.
+  canonical exercise even if the coach wrote none.
+  If athlete context is provided, TAILOR the cues to THIS athlete: prioritise
+  the technique/safety points most relevant to their condition or injury, fold
+  in sensible load / tempo / range-of-motion cautions or regressions, and never
+  write a cue that contradicts the coach's prescription or the athlete's stated
+  limitations. Honour any specific instructions the coach wrote for the movement.
 - raw: the exact source fragment the coach wrote for that exercise.
 
 Never invent exercises that were not mentioned. If weight/sets/reps are not given,

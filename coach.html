@@ -675,6 +675,9 @@
     function App() {
       const [screen, setScreen] = useState('input'); // input | review | export
       const [text, setText] = useState('');
+      // Athlete context / anchor — injuries, level, goals, equipment. Tailors the
+      // generated coaching cues. Persisted so the coach doesn't retype it weekly.
+      const [context, setContext] = useState(() => { try { return localStorage.getItem('coach_athlete_context') || ''; } catch (_) { return ''; } });
       const [weekStart, setWeekStart] = useState(nextMonday(isoToday()));
       const [loading, setLoading] = useState(false);
       const [error, setError] = useState('');
@@ -688,6 +691,7 @@
 
       // keep module-level dayTitles in sync for buildExport
       useEffect(() => { dayTitles = titles; }, [titles]);
+      useEffect(() => { try { localStorage.setItem('coach_athlete_context', context); } catch (_) {} }, [context]);
 
       // --- Optional shared-passphrase gate (server-enforced) ---
       const [gateRequired, setGateRequired] = useState(false);
@@ -735,7 +739,7 @@
           const res = await fetch('/api/parse', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-coach-pass': pass },
-            body: JSON.stringify({ text: t }),
+            body: JSON.stringify({ text: t, context: context.trim() }),
           });
           let data = {};
           try { data = await res.json(); } catch (_) { data = {}; }
@@ -899,6 +903,17 @@
               <div>
                 <p className="label-mono text-[#0a0a0a]/50 mb-1.5">Week starting</p>
                 <input type="date" value={weekStart} onChange={(e) => setWeekStart(e.target.value || weekStart)} className="ci" />
+              </div>
+
+              <div>
+                <p className="label-mono text-[#0a0a0a]/50 mb-1.5">Athlete context <span className="text-[#0a0a0a]/35">(optional — tailors the coaching cues)</span></p>
+                <textarea
+                  value={context}
+                  onChange={(e) => setContext(e.target.value)}
+                  rows={3}
+                  placeholder={"e.g. 38yo, returning from R Achilles tendinopathy (pain-free); intermediate lifter; goal: rebuild calf capacity; full gym. (You can also paste the athlete's exported history here.)"}
+                  className="ci resize-y leading-relaxed"
+                />
               </div>
 
               <div>
