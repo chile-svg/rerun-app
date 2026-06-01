@@ -283,7 +283,7 @@
     //   2) client fallback from the exercise library (searchExercise)
     // Navigating selects the shown image as the reference (imageUrl + imageAuto false).
     // ====================================================================
-    function ImageCarousel({ name, imageUrl, imageAuto, enrichImages, onChange }) {
+    function ImageCarousel({ name, imageUrl, imageAuto, enrichImages, pending, onChange }) {
       const [clientImages, setClientImages] = useState([]); // urls from the library
       const [broken, setBroken] = useState({}); // url -> true when <img> errored
       const [idx, setIdx] = useState(0);
@@ -354,7 +354,12 @@
 
       return (
         <div className="space-y-1.5">
-          <p className="label-mono text-[#0a0a0a]/50">— Reference —</p>
+          <div className="flex items-center justify-between">
+            <p className="label-mono text-[#0a0a0a]/50">— Reference —</p>
+            {pending && !(enrichImages && enrichImages.length) && (
+              <span className="flex items-center gap-1 label-mono text-[#0a0a0a]/40"><Icon name="RefreshCw" size={10} className="animate-spin" /> finding best image…</span>
+            )}
+          </div>
           {total > 0 ? (
             <div className="space-y-1.5">
               <div className="relative border-2 border-[#0a0a0a] bg-[#e8e4d9] overflow-hidden">
@@ -542,7 +547,7 @@
     // ====================================================================
     // One editable exercise card
     // ====================================================================
-    function ExerciseCard({ ex, index, enrichImages, onChange, onDelete }) {
+    function ExerciseCard({ ex, index, enrichImages, pending, onChange, onDelete }) {
       return (
         <div className="border-2 border-[#0a0a0a] bg-[#f5f3ee]">
           <div className="flex items-stretch bg-[#4a3528] text-[#f5f3ee] border-b-2 border-[#0a0a0a]">
@@ -600,6 +605,7 @@
               imageUrl={ex.imageUrl}
               imageAuto={ex.imageAuto}
               enrichImages={enrichImages}
+              pending={pending}
               onChange={onChange}
             />
 
@@ -675,7 +681,7 @@
       const [summary, setSummary] = useState('');
       const [exercises, setExercises] = useState([]);
       const [enrichByName, setEnrichByName] = useState({}); // lowercased name -> [ranked image urls]
-      const [enrichLoading, setEnrichLoading] = useState(false); // image ranking in progress
+      const [enrichPending, setEnrichPending] = useState(() => new Set()); // lowercased names still being ranked
       const [titles, setTitles] = useState({}); // weekday -> title
       const [copied, setCopied] = useState(false);
       const [exported, setExported] = useState(false);
@@ -770,30 +776,40 @@
           setTitles({});
           setScreen('review');
 
-          // Fire-and-forget image ranking. SLOW — never blocks the review screen.
-          // On success we merge ranked images in front of the client carousel for
-          // exercises the coach hasn't manually overridden (imageAuto !== false).
-          setEnrichLoading(true);
+          // Image ranking is split PER EXERCISE and fired independently (pool of
+          // 3) so each card's reference images stream in as soon as that one is
+          // ranked — never blocking the review screen, and not waiting on the
+          // whole batch. Each is best-effort; on failure that card just keeps
+          // its client-library carousel.
+          const uniqueNames = [...new Set(mapped.map((m) => m.name).filter(Boolean))];
+          setEnrichPending(new Set(uniqueNames.map((n) => n.toLowerCase())));
           (async () => {
-            try {
-              const er = await fetch('/api/enrich', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-coach-pass': pass },
-                body: JSON.stringify({ exercises: mapped.map((m) => ({ name: m.name })) }),
-              });
-              if (!er.ok) return; // 401/503/etc → silently keep client carousel
-              const ed = await er.json().catch(() => ({}));
-              const results = Array.isArray(ed.results) ? ed.results : [];
-              if (!results.length) return;
-              const next = {};
-              for (const r of results) {
-                if (!r || !r.name) continue;
-                const imgs = Array.isArray(r.images) ? r.images.map(String).filter(Boolean) : [];
-                if (imgs.length) next[String(r.name).toLowerCase()] = imgs;
+            const POOL = 3;
+            let i = 0;
+            const worker = async () => {
+              while (i < uniqueNames.length) {
+                const name = uniqueNames[i++];
+                const key = name.toLowerCase();
+                try {
+                  const er = await fetch('/api/enrich', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-coach-pass': pass },
+                    body: JSON.stringify({ exercises: [{ name }] }),
+                  });
+                  if (er.ok) {
+                    const ed = await er.json().catch(() => ({}));
+                    const results = Array.isArray(ed.results) ? ed.results : [];
+                    const hit = results.find((r) => r && String(r.name).toLowerCase() === key) || results[0];
+                    const imgs = hit && Array.isArray(hit.images) ? hit.images.map(String).filter(Boolean) : [];
+                    if (imgs.length) setEnrichByName((prev) => ({ ...prev, [key]: imgs }));
+                  }
+                } catch (_) { /* keep client carousel */ }
+                finally {
+                  setEnrichPending((prev) => { const n = new Set(prev); n.delete(key); return n; });
+                }
               }
-              if (Object.keys(next).length) setEnrichByName(next);
-            } catch (_) { /* enhancement only — ignore failures */ }
-            finally { setEnrichLoading(false); }
+            };
+            await Promise.all(Array.from({ length: Math.min(POOL, uniqueNames.length) }, worker));
           })();
         } catch (e) {
           setError('Could not reach the server. Your text is kept — check your connection and try again.');
@@ -945,16 +961,16 @@
                 </div>
               )}
 
-              {enrichLoading && (
+              {enrichPending.size > 0 && (
                 <div className="flex items-center gap-2 border-2 border-dashed border-[#0a0a0a]/40 bg-[#e8e4d9]/60 px-3 py-2">
                   <Icon name="RefreshCw" size={13} className="animate-spin text-[#c8202b]" />
-                  <p className="label-mono text-[#0a0a0a]/60">Finding the clearest reference images… you can review &amp; edit now.</p>
+                  <p className="label-mono text-[#0a0a0a]/60">Ranking reference images — {enrichPending.size} left. Review &amp; edit now; each fills in as it's ready.</p>
                 </div>
               )}
 
               <div className="space-y-4">
                 {exercises.map((ex, i) => (
-                  <ExerciseCard key={ex.id} ex={ex} index={i} enrichImages={enrichByName[String(ex.name || '').toLowerCase()] || null} onChange={(p) => updateEx(ex.id, p)} onDelete={() => deleteEx(ex.id)} />
+                  <ExerciseCard key={ex.id} ex={ex} index={i} enrichImages={enrichByName[String(ex.name || '').toLowerCase()] || null} pending={enrichPending.has(String(ex.name || '').toLowerCase())} onChange={(p) => updateEx(ex.id, p)} onDelete={() => deleteEx(ex.id)} />
                 ))}
               </div>
 
