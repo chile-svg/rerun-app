@@ -2963,12 +2963,37 @@ function VideoModal({ exercise, onClose }) {
   const [imgFailed, setImgFailed] = useState(false);
   const query = encodeURIComponent(`${exercise.name} exercise form tutorial`);
   const ytSearch = `https://www.youtube.com/results?search_query=${query}`;
-  const vid = youtubeId(exercise.video);
+  const pinnedId = youtubeId(exercise.video);
   const showImage = exercise.image && !imgFailed;
-  // A pinned video ID embeds reliably; the search fallback is best-effort.
-  const embedSrc = vid
-    ? `https://www.youtube-nocookie.com/embed/${vid}?rel=0`
-    : `https://www.youtube.com/embed?listType=search&list=${query}`;
+
+  // When no clip is pinned, look one up via the server's YouTube search so we
+  // can embed a real, playable video (YouTube killed the old listType=search
+  // inline embed). Needs YOUTUBE_API_KEY on the server; otherwise we fall back
+  // to a tap-to-search link.
+  const [results, setResults] = useState([]);
+  const [idx, setIdx] = useState(0);
+  const [ytStatus, setYtStatus] = useState('idle'); // idle|loading|ok|empty|unavailable|error
+
+  useEffect(() => {
+    if (pinnedId || !exercise.name) return;
+    let cancelled = false;
+    setYtStatus('loading');
+    (async () => {
+      try {
+        const r = await fetch(`/api/youtube?q=${query}`);
+        const data = await r.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!r.ok) { setYtStatus(r.status === 503 ? 'unavailable' : 'error'); return; }
+        const list = (data.results || []).filter(x => x && x.videoId);
+        if (!list.length) { setYtStatus('empty'); return; }
+        setResults(list); setIdx(0); setYtStatus('ok');
+      } catch (e) { if (!cancelled) setYtStatus('error'); }
+    })();
+    return () => { cancelled = true; };
+  }, [exercise.name, pinnedId, query]);
+
+  const currentId = pinnedId || (results[idx] && results[idx].videoId) || null;
+  const cycle = () => { if (results.length > 1) setIdx((idx + 1) % results.length); };
 
   return (
     <Modal onClose={onClose} title="Exercise reference">
@@ -2997,15 +3022,34 @@ function VideoModal({ exercise, onClose }) {
           </div>
         )}
 
-        <div className="border-2 border-[#0a0a0a] bg-[#0a0a0a] overflow-hidden aspect-video">
-          <iframe
-            src={embedSrc}
-            className="w-full h-full"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            title={`${exercise.name} video`}
-          />
-        </div>
+        {currentId ? (
+          <div className="space-y-1">
+            <div className="border-2 border-[#0a0a0a] bg-[#0a0a0a] overflow-hidden aspect-video">
+              <iframe
+                key={currentId}
+                src={`https://www.youtube-nocookie.com/embed/${currentId}?rel=0`}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title={`${exercise.name} video`}
+              />
+            </div>
+            {!pinnedId && results.length > 1 && (
+              <button onClick={cycle} className="flex items-center justify-center gap-1.5 w-full px-3 py-2 bg-[#e8e4d9] border-2 border-[#0a0a0a] text-[10px] font-mono uppercase tracking-[0.2em] font-bold active:scale-[0.98] transition">
+                <Icon name="Search" size={12} /> Try another clip ({idx + 1}/{results.length})
+              </button>
+            )}
+          </div>
+        ) : (
+          <a href={ytSearch} target="_blank" rel="noreferrer" className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-[#0a0a0a]/40 bg-[#e8e4d9] aspect-video text-center px-5 active:scale-[0.99] transition">
+            <Icon name="Search" size={24} className="text-[#c8202b]" />
+            <p className="text-xs text-[#0a0a0a]/60 leading-snug">
+              {ytStatus === 'loading'
+                ? 'Finding a clip…'
+                : <>No clip pinned. Tap to search YouTube for<br /><span className="font-bold">“{exercise.name}”</span>.</>}
+            </p>
+          </a>
+        )}
 
         <a href={ytSearch} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-[#c8202b] text-[#f5f3ee] font-bold active:scale-[0.98] transition text-[11px] uppercase tracking-[0.2em] border-2 border-[#c8202b]">
           <Icon name="Search" size={14} /> Open on YouTube
@@ -3014,9 +3058,11 @@ function VideoModal({ exercise, onClose }) {
         <div className="border-l-4 border-[#0a0a0a] bg-[#e8e4d9] px-3 py-2.5">
           <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#0a0a0a]/60 mb-1">— TIP —</p>
           <p className="text-xs leading-relaxed text-[#0a0a0a]/80">
-            {vid
+            {pinnedId
               ? 'Showing the clip pinned to this exercise.'
-              : 'No clip pinned yet — this is a live YouTube search, which sometimes can’t embed. To pin a video that always plays here, edit the session and paste a YouTube link into the exercise.'}
+              : ytStatus === 'unavailable'
+                ? 'Showing a YouTube search link. Set YOUTUBE_API_KEY on the server to auto-embed clips here.'
+                : 'Auto-picked from YouTube. Use “Try another clip” to cycle, or edit the session to pin a specific link.'}
           </p>
         </div>
       </div>

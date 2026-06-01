@@ -200,6 +200,7 @@
       const [results, setResults] = useState([]);
       const [searching, setSearching] = useState(false);
       const [q, setQ] = useState(name || '');
+      const [customUrl, setCustomUrl] = useState('');
 
       useEffect(() => { setImgFailed(false); }, [imageUrl]);
 
@@ -240,11 +241,13 @@
                 </div>
                 <div className="p-4 space-y-3">
                   <form onSubmit={(e) => { e.preventDefault(); runSearch(q); }} className="flex gap-2">
-                    <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search movements…" className="ci flex-1" />
+                    <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search the image library (try a simpler name)…" className="ci flex-1" />
                     <button type="submit" className="px-3 bg-[#0a0a0a] text-[#f5f3ee] active:scale-95 transition"><Icon name="Search" size={16} /></button>
                   </form>
                   {searching && <p className="label-mono text-[#0a0a0a]/50">Searching…</p>}
-                  {!searching && results.length === 0 && <p className="text-xs text-[#0a0a0a]/50">No matches found.</p>}
+                  {!searching && results.length === 0 && (
+                    <p className="text-xs text-[#0a0a0a]/50 leading-snug">No matches in the open exercise library for that term. Try a simpler/more common name above (e.g. “calf raise”, “split squat”), or paste a direct image URL below.</p>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     {results.map((r, i) => (
                       <button key={i} onClick={() => { onPick(r); setPicking(false); }} className="border-2 border-[#0a0a0a] bg-[#e8e4d9] text-left active:scale-[0.98] transition overflow-hidden">
@@ -254,6 +257,16 @@
                         <p className="px-2 py-1.5 text-[11px] font-semibold leading-tight border-t-2 border-[#0a0a0a]">{r.name}</p>
                       </button>
                     ))}
+                  </div>
+                  <div className="border-t-2 border-[#0a0a0a]/10 pt-3 space-y-1.5">
+                    <p className="label-mono text-[#0a0a0a]/50">Or paste an image URL</p>
+                    <form onSubmit={(e) => { e.preventDefault(); const u = customUrl.trim(); if (u) { onPick({ name, imageUrl: u }); setPicking(false); } }} className="flex gap-2">
+                      <input value={customUrl} onChange={(e) => setCustomUrl(e.target.value)} placeholder="https://…/photo.jpg" className="ci flex-1" />
+                      <button type="submit" className="px-3 bg-[#c8202b] text-[#f5f3ee] active:scale-95 transition label-mono">Use</button>
+                    </form>
+                    {imageUrl && (
+                      <button onClick={() => { onPick({ name, imageUrl: '' }); setPicking(false); }} className="label-mono text-[#0a0a0a]/50 active:scale-95 transition">Remove current image</button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -266,25 +279,117 @@
     // ====================================================================
     // YouTube reference block for one exercise
     // ====================================================================
-    function VideoRef({ name, video, onChangeVideo }) {
-      const query = encodeURIComponent(`${name} exercise form tutorial`);
-      const ytSearch = `https://www.youtube.com/results?search_query=${query}`;
-      const vid = youtubeId(video);
-      const embedSrc = vid
-        ? `https://www.youtube-nocookie.com/embed/${vid}?rel=0`
-        : `https://www.youtube.com/embed?listType=search&list=${query}`;
+    function VideoRef({ name, video, videoAuto, onChange }) {
+      const query = `${name || ''} exercise form tutorial`.trim();
+      const ytSearch = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+      const pinnedId = youtubeId(video);
+      const [results, setResults] = useState([]);
+      const [idx, setIdx] = useState(0);
+      const [status, setStatus] = useState('idle'); // idle|loading|ok|empty|unavailable|error
+      const [picking, setPicking] = useState(false);
+
+      // Fetch embeddable results for the exercise name (debounced). We always
+      // fetch so "swap" has options; we only auto-fill the export's video while
+      // the coach hasn't manually pinned/swapped (videoAuto stays true).
+      useEffect(() => {
+        if (!name || !name.trim()) { setStatus('idle'); setResults([]); return; }
+        let cancelled = false;
+        setStatus('loading');
+        const t = setTimeout(async () => {
+          try {
+            const r = await fetch(`/api/youtube?q=${encodeURIComponent(query)}`);
+            const data = await r.json().catch(() => ({}));
+            if (cancelled) return;
+            if (!r.ok) { setStatus(r.status === 503 ? 'unavailable' : 'error'); return; }
+            const list = (data.results || []).filter((x) => x && x.videoId);
+            if (!list.length) { setStatus('empty'); return; }
+            setResults(list); setIdx(0); setStatus('ok');
+            if (videoAuto !== false) {
+              onChange({ video: `https://youtu.be/${list[0].videoId}`, videoAuto: true });
+            }
+          } catch (e) { if (!cancelled) setStatus('error'); }
+        }, 500);
+        return () => { cancelled = true; clearTimeout(t); };
+        // eslint-disable-next-line
+      }, [name]);
+
+      // A manual pin/selection wins; otherwise embed the current search result.
+      const currentId = pinnedId || (results[idx] && results[idx].videoId) || null;
+      const current = results[idx];
+
+      const selectResult = (i) => {
+        const v = results[i];
+        if (!v) return;
+        setIdx(i);
+        onChange({ video: `https://youtu.be/${v.videoId}`, videoAuto: false });
+        setPicking(false);
+      };
+
       return (
         <div className="space-y-1.5">
-          <p className="label-mono text-[#0a0a0a]/50">— Video reference —</p>
-          <div className="border-2 border-[#0a0a0a] bg-[#0a0a0a] overflow-hidden aspect-video">
-            <iframe key={embedSrc} src={embedSrc} className="w-full h-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen title={`${name} video`} />
+          <div className="flex items-center justify-between">
+            <p className="label-mono text-[#0a0a0a]/50">— Video reference —</p>
+            {results.length > 1 && (
+              <button onClick={() => setPicking(true)} className="label-mono text-[#c8202b] flex items-center gap-1 active:scale-95 transition">
+                <Icon name="RefreshCw" size={11} /> Swap clip
+              </button>
+            )}
           </div>
-          <input value={video || ''} onChange={(e) => onChangeVideo(e.target.value)} placeholder="Pin a YouTube link (optional)" className="ci" />
+
+          {currentId ? (
+            <div className="border-2 border-[#0a0a0a] bg-[#0a0a0a] overflow-hidden aspect-video">
+              <iframe key={currentId} src={`https://www.youtube-nocookie.com/embed/${currentId}?rel=0`} className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen title={`${name} video`} />
+            </div>
+          ) : (
+            <a href={ytSearch} target="_blank" rel="noreferrer" className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-[#0a0a0a]/40 bg-[#e8e4d9]/60 aspect-video text-center px-5 active:scale-[0.99] transition">
+              <Icon name="Search" size={26} className="text-[#c8202b]" />
+              <p className="text-xs text-[#0a0a0a]/60 leading-snug">
+                {status === 'loading' ? 'Finding a clip…'
+                  : status === 'unavailable' ? <>In-app video search is off. Tap to search YouTube for <span className="font-semibold">“{name}”</span>, then paste a link below.</>
+                  : status === 'empty' ? <>No clip found. Tap to search YouTube for <span className="font-semibold">“{name}”</span>.</>
+                  : status === 'error' ? 'Could not load video search. Tap to open YouTube, or paste a link below.'
+                  : <>Tap to search YouTube for <span className="font-semibold">“{name || 'this movement'}”</span>.</>}
+              </p>
+            </a>
+          )}
+
+          {currentId && !pinnedId && current && (
+            <p className="text-[11px] text-[#0a0a0a]/50 leading-snug truncate">▶ {current.title}</p>
+          )}
+
+          <input value={video || ''} onChange={(e) => onChange({ video: e.target.value, videoAuto: false })} placeholder="Or paste a YouTube link to pin" className="ci" />
           <a href={ytSearch} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full px-3 py-2 bg-[#c8202b] text-[#f5f3ee] active:scale-[0.98] transition label-mono border-2 border-[#c8202b]">
             <Icon name="Search" size={12} /> Open on YouTube
           </a>
+
+          {picking && (
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-2 bg-[#0a0a0a]/60 backdrop-blur-sm" onClick={() => setPicking(false)}>
+              <div className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-[#f5f3ee] border-2 border-[#0a0a0a] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                <div className="sticky top-0 z-10 flex items-stretch bg-[#0a0a0a] text-[#f5f3ee] border-b-2 border-[#0a0a0a]">
+                  <h3 className="flex-1 px-4 py-3 text-sm uppercase font-bold" style={{ fontFamily: '"Anton", sans-serif', letterSpacing: '0.15em' }}>Pick a clip</h3>
+                  <button onClick={() => setPicking(false)} className="px-4 hover:bg-[#c8202b] active:scale-95 transition border-l-2 border-[#f5f3ee]/20"><Icon name="X" size={18} /></button>
+                </div>
+                <div className="p-3 space-y-2">
+                  {results.map((r, i) => (
+                    <button key={r.videoId} onClick={() => selectResult(i)} className={`w-full flex gap-2 border-2 ${i === idx ? 'border-[#c8202b]' : 'border-[#0a0a0a]'} bg-[#e8e4d9] text-left active:scale-[0.99] transition overflow-hidden`}>
+                      {r.thumbnail
+                        ? <img src={r.thumbnail} alt="" className="w-28 object-cover" />
+                        : <div className="w-28 h-16 flex items-center justify-center text-[#0a0a0a]/30"><Icon name="Image" size={20} /></div>}
+                      <span className="flex-1 px-1 py-1.5 text-[11px] leading-tight self-center">
+                        <span className="font-semibold block">{r.title}</span>
+                        <span className="block text-[#0a0a0a]/50 mt-0.5">{r.channel}</span>
+                      </span>
+                    </button>
+                  ))}
+                  <a href={ytSearch} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full px-3 py-2 bg-[#c8202b] text-[#f5f3ee] active:scale-[0.98] transition label-mono border-2 border-[#c8202b]">
+                    <Icon name="Search" size={12} /> Find more on YouTube
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
     }
@@ -366,7 +471,7 @@
               onPick={(r) => onChange({ imageUrl: r.imageUrl || '', imageAuto: false })}
             />
 
-            <VideoRef name={ex.name} video={ex.video} onChangeVideo={(v) => onChange({ video: v })} />
+            <VideoRef name={ex.name} video={ex.video} videoAuto={ex.videoAuto} onChange={onChange} />
           </div>
         </div>
       );
@@ -481,6 +586,7 @@
             notes: String(ex.notes || ''),
             raw: String(ex.raw || ''),
             video: '',
+            videoAuto: true, // allow auto video search/pick
             imageUrl: '',
             imageAuto: true, // allow auto image matching
           }));
@@ -503,7 +609,7 @@
       const updateEx = (id, patch) => setExercises((arr) => arr.map((e) => e.id === id ? { ...e, ...patch } : e));
       const deleteEx = (id) => setExercises((arr) => arr.filter((e) => e.id !== id));
       const addEx = () => setExercises((arr) => [...arr, {
-        id: newId(), name: '', sets: 3, reps: '', weight: '', day: '', notes: '', raw: '', video: '', imageUrl: '', imageAuto: true,
+        id: newId(), name: '', sets: 3, reps: '', weight: '', day: '', notes: '', raw: '', video: '', videoAuto: true, imageUrl: '', imageAuto: true,
       }]);
 
       const exportObj = useMemo(() => buildExport(exercises, weekStart), [exercises, weekStart, titles]);
