@@ -1220,6 +1220,11 @@ function App() {
           });
 
           setPlan({ ...parsed, days: mergedDays });
+          // Jump the calendar to the imported plan's first day so the user
+          // immediately sees what they imported (a coach plan for next week
+          // would otherwise land on today's empty "no session" state).
+          const firstDate = mergedDays.map(d => d.date).filter(Boolean).sort()[0];
+          if (firstDate) setCursor(firstDate);
           setShowImport(false);
         }
       } catch (err) {
@@ -1533,7 +1538,16 @@ function App() {
         />
       )}
       {showImport && (
-        <ImportModal onClose={() => setShowImport(false)} onPick={() => fileRef.current?.click()} />
+        <ImportModal
+          onClose={() => setShowImport(false)}
+          onPick={() => fileRef.current?.click()}
+          onStartFresh={() => {
+            if (!window.confirm('Start fresh?\n\nThis clears the current plan from THIS device (including any logged notes/completions for it) so you can import your own. This cannot be undone.')) return;
+            setPlan({ days: [], meta: {} });
+            setCursor(isoToday());
+            setShowImport(false);
+          }}
+        />
       )}
       {showExport && (
         <ExportModal onClose={() => setShowExport(false)} onJSON={exportJSON} onCSV={exportCSV} onHistory={exportHistory} />
@@ -3071,7 +3085,63 @@ function VideoModal({ exercise, onClose }) {
 }
 
 // ---------- IMPORT / EXPORT MODALS ----------
-function ImportModal({ onClose, onPick }) {
+const AI_PLAN_PROMPT = `I want a personalized training plan. Output ONLY a single valid JSON object — no markdown, no commentary — that I can import into my training app.
+
+ABOUT ME (edit these):
+- Goal: <e.g. run a sub-2:00 half marathon / general strength + mobility>
+- Experience: <beginner / intermediate / advanced>
+- Days per week: <e.g. 4>
+- Plan length: <e.g. 4 weeks>
+- Start date: <YYYY-MM-DD — the day I want to begin>
+- Equipment / constraints: <e.g. full gym; right achilles rehab; no running on back-to-back days>
+
+REQUIRED JSON SHAPE:
+{
+  "days": [
+    {
+      "date": "YYYY-MM-DD",
+      "type": "strength",
+      "title": "Lower Body Strength",
+      "run": { "distance": "8 km", "zone": "Z2", "pace": "5:35-6:20", "detail": "" },
+      "strength": { "duration": "50 min" },
+      "exercises": [
+        { "name": "Back Squat", "sets": 4, "reps": "8", "weight": "70 kg", "notes": "tempo 3-1-1" },
+        { "name": "Romanian Deadlift", "sets": 3, "reps": "8", "weight": "60 kg", "notes": "" }
+      ]
+    },
+    { "date": "YYYY-MM-DD", "type": "rest", "title": "Rest", "exercises": [] }
+  ],
+  "meta": { "title": "My Plan" }
+}
+
+RULES:
+- One object in "days" per training or rest day, with real consecutive dates from my start date.
+- "type" is one of: easy, long, tempo, threshold, vo2, progression, recovery, sharpen, shakeout, strength, rest, race, custom.
+- "run" is OPTIONAL — include only on running days; omit it for pure strength or rest days.
+- "strength" is OPTIONAL — include only on strength days.
+- "sets" is a whole number; "reps" and "weight" are strings ("8", "8-10", "30s", "AMRAP", "70 kg", "bodyweight", or "" if none).
+- Use canonical exercise names (e.g. "Romanian Deadlift", not "RDL") so the app can find reference pictures and videos.
+- Output the JSON only.`;
+
+function ImportModal({ onClose, onPick, onStartFresh }) {
+  const [copied, setCopied] = useState(false);
+  const copyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(AI_PLAN_PROMPT);
+    } catch (_) {
+      const ta = document.createElement('textarea');
+      ta.value = AI_PLAN_PROMPT;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
   return (
     <Modal onClose={onClose} title="Import training plan">
       <div className="space-y-3">
@@ -3083,10 +3153,27 @@ function ImportModal({ onClose, onPick }) {
           <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#f5f3ee]/60">— WHAT IS PRESERVED —</p>
           <p className="text-sm leading-relaxed opacity-90">Your exercise notes, loads logged, session feedback, completion checks, and extra activity logs are kept — even if the file doesn't have them.</p>
         </div>
-        <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-[#0a0a0a]/50 leading-relaxed">A confirm dialog will show exactly how many days have data to preserve before anything changes.</p>
+        <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-[#0a0a0a]/50 leading-relaxed">After importing, the calendar jumps to the plan's first day. A confirm dialog shows how many days have data to preserve before anything changes.</p>
         <button onClick={onPick} className="w-full px-4 py-3 bg-[#0a0a0a] text-[#f5f3ee] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition text-[11px] uppercase tracking-[0.2em]">
           <Icon name="Upload" size={16} /> Choose JSON file
         </button>
+
+        <div className="border-2 border-[#0a0a0a] bg-[#e8e4d9] p-3 space-y-2">
+          <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#0a0a0a]/60">— NO PLAN YET? GENERATE ONE —</p>
+          <p className="text-xs text-[#0a0a0a]/75 leading-relaxed">Copy a ready-made prompt, paste it into ChatGPT / Claude / Gemini with your goals, save the reply as a <span className="font-mono">.json</span> file, then choose it above.</p>
+          <button onClick={copyPrompt} className="w-full px-4 py-3 bg-[#c8202b] text-[#f5f3ee] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition text-[11px] uppercase tracking-[0.2em] border-2 border-[#c8202b]">
+            <Icon name={copied ? 'CheckCircle2' : 'Sparkles'} size={16} /> {copied ? 'Copied to clipboard' : 'Copy AI plan prompt'}
+          </button>
+        </div>
+
+        {onStartFresh && (
+          <div className="pt-1">
+            <button onClick={onStartFresh} className="w-full px-4 py-3 bg-[#f5f3ee] text-[#0a0a0a]/70 font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition text-[11px] uppercase tracking-[0.2em] border-2 border-dashed border-[#0a0a0a]/40">
+              <Icon name="Trash2" size={14} /> Start fresh — clear this plan
+            </button>
+            <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-[#0a0a0a]/40 leading-relaxed mt-1.5">Not your plan? This empties the calendar on this device so you can import your own. Your saved history for it is removed too.</p>
+          </div>
+        )}
       </div>
     </Modal>
   );

@@ -79,6 +79,17 @@ Enables the **in-app video player**: the server's `GET /api/youtube` endpoint se
 - **Without it:** video blocks fall back to a tap-to-search YouTube link (still works, just not embedded).
 - **Quota note:** a YouTube search costs 100 units against the default 10,000/day quota (~100 distinct searches). The server caches results by query for 24h, so repeated exercise names are free.
 
+### `COACH_PASSCODE` (optional)
+
+Coach mode has no login, so anyone with the `/coach` URL could use it and consume your Gemini quota. Set `COACH_PASSCODE` to any phrase to require it before parsing — share that phrase with your coach.
+
+- **With it set:** `/coach` shows a passphrase screen; the passphrase is checked **server-side** on every parse (it can't be bypassed in the browser) and remembered on the coach's device.
+- **Without it:** coach mode is open to anyone with the link.
+
+## Starting fresh / generating a plan with AI
+
+The athlete app ships with a sample plan. A new user can tap **Import → "Start fresh — clear this plan"** to empty the calendar, then either import a JSON a coach sent them or tap **"Copy AI plan prompt"** to get a ready-made prompt — paste it into ChatGPT / Claude / Gemini with your goals, save the reply as a `.json`, and import it.
+
 ---
 
 ## Local development

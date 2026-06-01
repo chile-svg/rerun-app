@@ -548,6 +548,38 @@
       // keep module-level dayTitles in sync for buildExport
       useEffect(() => { dayTitles = titles; }, [titles]);
 
+      // --- Optional shared-passphrase gate (server-enforced) ---
+      const [gateRequired, setGateRequired] = useState(false);
+      const [pass, setPass] = useState(() => { try { return localStorage.getItem('coach_pass') || ''; } catch (_) { return ''; } });
+      const [gateOpen, setGateOpen] = useState(false);
+      const [passInput, setPassInput] = useState('');
+      useEffect(() => {
+        let cancelled = false;
+        (async () => {
+          try {
+            const r = await fetch('/api/coach-config');
+            const cfg = await r.json().catch(() => ({}));
+            if (cancelled) return;
+            if (cfg && cfg.requiresPasscode) {
+              setGateRequired(true);
+              if (!pass) setGateOpen(true);
+            }
+          } catch (_) { /* if config can't load, don't block; parse will gate anyway */ }
+        })();
+        return () => { cancelled = true; };
+        // eslint-disable-next-line
+      }, []);
+      const submitGate = (e) => {
+        if (e) e.preventDefault();
+        const v = passInput.trim();
+        if (!v) return;
+        try { localStorage.setItem('coach_pass', v); } catch (_) {}
+        setPass(v);
+        setPassInput('');
+        setGateOpen(false);
+        setError('');
+      };
+
       const examples = [
         'Monday: Back squat 4x8 @80kg, RDL 3x8, Walking lunge 3x12 each leg / 30s plank x3',
         'Tue upper: bench 5x5 @60kg, pull-ups 4xAMRAP, db row 3x10. Thu: deadlift 3x5, front squat 3x6',
@@ -561,13 +593,19 @@
         try {
           const res = await fetch('/api/parse', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-coach-pass': pass },
             body: JSON.stringify({ text: t }),
           });
           let data = {};
           try { data = await res.json(); } catch (_) { data = {}; }
           if (!res.ok) {
-            if (res.status === 503) {
+            if (res.status === 401) {
+              try { localStorage.removeItem('coach_pass'); } catch (_) {}
+              setPass('');
+              setGateRequired(true);
+              setGateOpen(true);
+              setError(data.error || 'Incorrect coach passphrase.');
+            } else if (res.status === 503) {
               setError(data.error || 'The server is missing its API key. Ask whoever runs the server to set GEMINI_API_KEY, then try again.');
             } else {
               setError(data.error || `Request failed (${res.status}). Your text is kept — try again.`);
@@ -651,6 +689,32 @@
           </div>
         </div>
       );
+
+      // ---- PASSPHRASE GATE ----
+      if (gateOpen) {
+        return (
+          <div className="min-h-full">
+            <Header />
+            <div className="max-w-md mx-auto px-4 py-10">
+              <div className="border-2 border-[#0a0a0a] bg-[#f5f3ee] p-5 space-y-3">
+                <h2 className="text-[22px] leading-none uppercase" style={{ fontFamily: '"Anton", sans-serif', letterSpacing: '0.03em' }}>Coach access</h2>
+                <p className="text-sm text-[#0a0a0a]/70 leading-relaxed">This coach tool is passphrase-protected. Enter the shared passphrase to continue.</p>
+                {error && (
+                  <div className="border-2 border-[#c8202b] bg-[#c8202b]/5 px-3 py-2">
+                    <p className="text-sm text-[#0a0a0a]/80">{error}</p>
+                  </div>
+                )}
+                <form onSubmit={submitGate} className="space-y-2">
+                  <input type="password" value={passInput} onChange={(e) => setPassInput(e.target.value)} placeholder="Passphrase" className="ci" autoFocus />
+                  <button type="submit" className="w-full px-4 py-3 bg-[#0a0a0a] text-[#f5f3ee] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition text-sm uppercase tracking-[0.25em] border-2 border-[#0a0a0a]">
+                    Enter
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        );
+      }
 
       // ---- INPUT SCREEN ----
       if (screen === 'input') {
