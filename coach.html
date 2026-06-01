@@ -200,6 +200,7 @@
       const [results, setResults] = useState([]);
       const [searching, setSearching] = useState(false);
       const [q, setQ] = useState(name || '');
+      const [customUrl, setCustomUrl] = useState('');
 
       useEffect(() => { setImgFailed(false); }, [imageUrl]);
 
@@ -240,11 +241,13 @@
                 </div>
                 <div className="p-4 space-y-3">
                   <form onSubmit={(e) => { e.preventDefault(); runSearch(q); }} className="flex gap-2">
-                    <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search movements…" className="ci flex-1" />
+                    <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search the image library (try a simpler name)…" className="ci flex-1" />
                     <button type="submit" className="px-3 bg-[#0a0a0a] text-[#f5f3ee] active:scale-95 transition"><Icon name="Search" size={16} /></button>
                   </form>
                   {searching && <p className="label-mono text-[#0a0a0a]/50">Searching…</p>}
-                  {!searching && results.length === 0 && <p className="text-xs text-[#0a0a0a]/50">No matches found.</p>}
+                  {!searching && results.length === 0 && (
+                    <p className="text-xs text-[#0a0a0a]/50 leading-snug">No matches in the open exercise library for that term. Try a simpler/more common name above (e.g. “calf raise”, “split squat”), or paste a direct image URL below.</p>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     {results.map((r, i) => (
                       <button key={i} onClick={() => { onPick(r); setPicking(false); }} className="border-2 border-[#0a0a0a] bg-[#e8e4d9] text-left active:scale-[0.98] transition overflow-hidden">
@@ -254,6 +257,16 @@
                         <p className="px-2 py-1.5 text-[11px] font-semibold leading-tight border-t-2 border-[#0a0a0a]">{r.name}</p>
                       </button>
                     ))}
+                  </div>
+                  <div className="border-t-2 border-[#0a0a0a]/10 pt-3 space-y-1.5">
+                    <p className="label-mono text-[#0a0a0a]/50">Or paste an image URL</p>
+                    <form onSubmit={(e) => { e.preventDefault(); const u = customUrl.trim(); if (u) { onPick({ name, imageUrl: u }); setPicking(false); } }} className="flex gap-2">
+                      <input value={customUrl} onChange={(e) => setCustomUrl(e.target.value)} placeholder="https://…/photo.jpg" className="ci flex-1" />
+                      <button type="submit" className="px-3 bg-[#c8202b] text-[#f5f3ee] active:scale-95 transition label-mono">Use</button>
+                    </form>
+                    {imageUrl && (
+                      <button onClick={() => { onPick({ name, imageUrl: '' }); setPicking(false); }} className="label-mono text-[#0a0a0a]/50 active:scale-95 transition">Remove current image</button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -270,17 +283,24 @@
       const query = encodeURIComponent(`${name} exercise form tutorial`);
       const ytSearch = `https://www.youtube.com/results?search_query=${query}`;
       const vid = youtubeId(video);
-      const embedSrc = vid
-        ? `https://www.youtube-nocookie.com/embed/${vid}?rel=0`
-        : `https://www.youtube.com/embed?listType=search&list=${query}`;
+      // Only embed when a real video is pinned. YouTube deprecated the
+      // `listType=search` inline embed (it now shows "video unavailable"), so
+      // when nothing is pinned we show a search-and-pin placeholder instead.
       return (
         <div className="space-y-1.5">
           <p className="label-mono text-[#0a0a0a]/50">— Video reference —</p>
-          <div className="border-2 border-[#0a0a0a] bg-[#0a0a0a] overflow-hidden aspect-video">
-            <iframe key={embedSrc} src={embedSrc} className="w-full h-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen title={`${name} video`} />
-          </div>
+          {vid ? (
+            <div className="border-2 border-[#0a0a0a] bg-[#0a0a0a] overflow-hidden aspect-video">
+              <iframe key={vid} src={`https://www.youtube-nocookie.com/embed/${vid}?rel=0`} className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen title={`${name} video`} />
+            </div>
+          ) : (
+            <a href={ytSearch} target="_blank" rel="noreferrer" className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-[#0a0a0a]/40 bg-[#e8e4d9]/60 aspect-video text-center px-5 active:scale-[0.99] transition">
+              <Icon name="Search" size={26} className="text-[#c8202b]" />
+              <p className="text-xs text-[#0a0a0a]/60 leading-snug">No clip pinned. Tap to search YouTube for<br /><span className="font-semibold">“{name || 'this movement'}”</span>, then paste a link below to pin it.</p>
+            </a>
+          )}
           <input value={video || ''} onChange={(e) => onChangeVideo(e.target.value)} placeholder="Pin a YouTube link (optional)" className="ci" />
           <a href={ytSearch} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full px-3 py-2 bg-[#c8202b] text-[#f5f3ee] active:scale-[0.98] transition label-mono border-2 border-[#c8202b]">
             <Icon name="Search" size={12} /> Open on YouTube

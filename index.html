@@ -2997,15 +2997,22 @@ function VideoModal({ exercise, onClose }) {
           </div>
         )}
 
-        <div className="border-2 border-[#0a0a0a] bg-[#0a0a0a] overflow-hidden aspect-video">
-          <iframe
-            src={embedSrc}
-            className="w-full h-full"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            title={`${exercise.name} video`}
-          />
-        </div>
+        {vid ? (
+          <div className="border-2 border-[#0a0a0a] bg-[#0a0a0a] overflow-hidden aspect-video">
+            <iframe
+              src={embedSrc}
+              className="w-full h-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              title={`${exercise.name} video`}
+            />
+          </div>
+        ) : (
+          <a href={ytSearch} target="_blank" rel="noreferrer" className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-[#0a0a0a]/40 bg-[#e8e4d9] aspect-video text-center px-5 active:scale-[0.99] transition">
+            <Icon name="Search" size={24} className="text-[#c8202b]" />
+            <p className="text-xs text-[#0a0a0a]/60 leading-snug">No clip pinned. Tap to search YouTube for<br /><span className="font-bold">“{exercise.name}”</span>.</p>
+          </a>
+        )}
 
         <a href={ytSearch} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-[#c8202b] text-[#f5f3ee] font-bold active:scale-[0.98] transition text-[11px] uppercase tracking-[0.2em] border-2 border-[#c8202b]">
           <Icon name="Search" size={14} /> Open on YouTube
@@ -3016,7 +3023,7 @@ function VideoModal({ exercise, onClose }) {
           <p className="text-xs leading-relaxed text-[#0a0a0a]/80">
             {vid
               ? 'Showing the clip pinned to this exercise.'
-              : 'No clip pinned yet — this is a live YouTube search, which sometimes can’t embed. To pin a video that always plays here, edit the session and paste a YouTube link into the exercise.'}
+              : 'No clip pinned yet. Tap the box above to search YouTube. To pin a clip that always plays here, edit the session and paste a YouTube link into the exercise.'}
           </p>
         </div>
       </div>
