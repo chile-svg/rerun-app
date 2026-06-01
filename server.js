@@ -24,6 +24,12 @@ app.get('/physio-pitch', (req, res) => {
   res.sendFile(path.join(ROOT, 'physio-pitch.html'));
 });
 
+// Lets coach.html know whether to show a passphrase gate. Set COACH_PASSCODE in
+// the environment to require a shared passphrase before coach mode can parse.
+app.get('/api/coach-config', (req, res) => {
+  res.json({ requiresPasscode: !!process.env.COACH_PASSCODE });
+});
+
 // --- Gemini structured-output schema -----------------------------------------
 // Gemini's responseSchema is an OpenAPI subset: use the Type enum, list every
 // field in `required`, and use propertyOrdering to fix the output order.
@@ -110,6 +116,15 @@ function friendlyApiError(err, keyName) {
 
 // --- POST /api/parse ---------------------------------------------------------
 app.post('/api/parse', async (req, res) => {
+  // Optional shared-passphrase gate (protects the Gemini quota when the /coach
+  // URL is shared). Enforced server-side so it can't be bypassed client-side.
+  if (process.env.COACH_PASSCODE) {
+    const given = req.get('x-coach-pass') || (req.body && req.body.passcode) || '';
+    if (given !== process.env.COACH_PASSCODE) {
+      return res.status(401).json({ error: 'Incorrect or missing coach passphrase.' });
+    }
+  }
+
   if (!process.env.GEMINI_API_KEY) {
     return res.status(503).json({
       error:
