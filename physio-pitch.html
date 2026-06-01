@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f5f3ee" />
+  <title>RE/RΔN — For Physios</title>
+  <meta name="description" content="Rehab that actually gets done. A small, honest training app that puts your prescription in your patient's pocket — reps, form, and a place to log it." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+  <style>
+    :root{
+      --paper:#f5f3ee;
+      --ink:#0a0a0a;
+      --red:#c8202b;
+      --line:rgba(10,10,10,.16);
+      --mute:rgba(10,10,10,.62);
+    }
+    *{box-sizing:border-box;}
+    html{scroll-behavior:smooth;}
+    body{
+      margin:0;background:var(--paper);color:var(--ink);
+      font-family:"Space Grotesk",system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased;
+      padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    a{color:inherit;}
+    ::selection{background:var(--red);color:var(--paper);}
+
+    .mono{font-family:"JetBrains Mono",ui-monospace,monospace;text-transform:uppercase;letter-spacing:.26em;font-size:.66rem;font-weight:700;}
+    .display{font-family:"Anton",sans-serif;text-transform:uppercase;line-height:.9;letter-spacing:.012em;font-weight:400;}
+
+    .wrap{max-width:1180px;margin:0 auto;padding:0 clamp(22px,5vw,72px);}
+
+    /* sticky bar */
+    header.bar{
+      position:sticky;top:0;z-index:50;
+      display:flex;align-items:center;justify-content:space-between;
+      padding:14px clamp(22px,5vw,72px);
+      background:rgba(245,243,238,.82);backdrop-filter:saturate(140%) blur(8px);
+      border-bottom:1px solid transparent;transition:border-color .3s ease;
+    }
+    header.bar.stuck{border-color:var(--line);}
+    header.bar .brand{font-family:"Anton",sans-serif;letter-spacing:.05em;font-size:1.1rem;}
+    header.bar .right{display:flex;gap:18px;align-items:center;}
+    header.bar a.try{
+      text-decoration:none;border:1.5px solid var(--ink);padding:7px 14px;
+      font-family:"JetBrains Mono",monospace;font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;font-weight:700;
+      transition:background .2s ease,color .2s ease;
+    }
+    header.bar a.try:hover{background:var(--ink);color:var(--paper);}
+
+    /* hero */
+    .hero{padding:clamp(56px,11vh,140px) 0 clamp(40px,7vh,90px);}
+    .hero .eyebrow{display:flex;gap:14px;align-items:center;color:var(--red);margin-bottom:clamp(26px,5vh,52px);}
+    .hero .eyebrow .dash{height:1px;width:46px;background:var(--red);}
+    .hero h1{
+      font-family:"Anton",sans-serif;text-transform:uppercase;
+      font-size:clamp(2.9rem,8.4vw,7.2rem);line-height:.9;letter-spacing:.01em;margin:0;font-weight:400;max-width:16ch;
+    }
+    .hero h1 em{font-style:normal;color:var(--red);}
+    .hero .lede{
+      margin-top:clamp(26px,4vh,44px);max-width:54ch;
+      font-size:clamp(1.06rem,1.7vw,1.32rem);line-height:1.55;color:var(--mute);font-weight:500;
+    }
+    .hero .cta{margin-top:clamp(30px,5vh,48px);display:flex;flex-wrap:wrap;gap:14px;}
+    .btn{
+      text-decoration:none;display:inline-flex;align-items:center;gap:10px;
+      font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
+      padding:15px 24px;border:1.5px solid var(--ink);transition:all .2s ease;
+    }
+    .btn.solid{background:var(--ink);color:var(--paper);}
+    .btn.solid:hover{background:var(--red);border-color:var(--red);}
+    .btn.ghost:hover{background:var(--ink);color:var(--paper);}
+    .hero .meta{
+      margin-top:clamp(44px,8vh,90px);padding-top:18px;border-top:1px solid var(--line);
+      display:flex;flex-wrap:wrap;gap:26px;color:var(--mute);
+    }
+
+    /* generic section */
+    section.band{padding:clamp(64px,11vh,140px) 0;border-top:1px solid var(--line);}
+    .sec-head{display:flex;gap:18px;align-items:baseline;margin-bottom:clamp(26px,4vh,44px);}
+    .sec-head .num{color:var(--red);}
+    .sec-head .lbl{color:var(--ink);}
+    section.band h2{
+      font-family:"Anton",sans-serif;text-transform:uppercase;font-weight:400;
+      font-size:clamp(2rem,5.4vw,4.3rem);line-height:.94;letter-spacing:.012em;margin:0 0 .55em;max-width:18ch;
+    }
+    section.band .body{max-width:60ch;font-size:clamp(1.04rem,1.5vw,1.22rem);line-height:1.6;color:var(--mute);font-weight:500;}
+    section.band .body strong{color:var(--ink);font-weight:700;}
+    .pull{font-family:"Anton",sans-serif;text-transform:uppercase;font-size:clamp(1.3rem,2.6vw,2rem);line-height:1.05;letter-spacing:.01em;margin-top:1.1em;max-width:24ch;}
+    .pull.red{color:var(--red);}
+
+    /* point list */
+    ul.points{list-style:none;margin:clamp(30px,4vh,48px) 0 0;padding:0;}
+    ul.points li{
+      display:grid;grid-template-columns:46px 1fr;gap:8px;align-items:start;
+      padding:20px 0;border-top:1px solid var(--line);
+      font-size:clamp(1.02rem,1.5vw,1.22rem);line-height:1.5;
+    }
+    ul.points li:last-child{border-bottom:1px solid var(--line);}
+    ul.points li .ix{font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.12em;color:var(--red);padding-top:.35em;font-weight:700;}
+    ul.points li b{font-weight:700;}
+    ul.points li span.t{font-weight:500;color:var(--ink);}
+    ul.points li span.t .sub{display:block;color:var(--mute);font-weight:500;font-size:.92em;margin-top:3px;}
+
+    /* dark full-bleed band */
+    section.dark{background:var(--ink);color:var(--paper);border:none;}
+    section.dark .sec-head .lbl{color:var(--paper);}
+    section.dark h2{color:var(--paper);}
+    section.dark .body{color:rgba(245,243,238,.7);}
+    section.dark .body strong{color:var(--paper);}
+    section.dark ul.points li{border-color:rgba(245,243,238,.18);}
+    section.dark ul.points li span.t{color:var(--paper);}
+    section.dark ul.points li span.t .sub{color:rgba(245,243,238,.62);}
+    section.dark ul.points li .ix{color:var(--paper);}
+    section.dark ::selection{background:var(--paper);color:var(--ink);}
+
+    /* cta band */
+    section.end{background:var(--red);color:var(--paper);border:none;text-align:left;}
+    section.end h2{color:var(--paper);}
+    section.end .body{color:rgba(255,255,255,.86);}
+    section.end .btn{border-color:var(--paper);color:var(--paper);}
+    section.end .btn:hover{background:var(--paper);color:var(--red);}
+    section.end .btn.solid{background:var(--paper);color:var(--red);}
+    section.end .btn.solid:hover{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+    section.end .cta{margin-top:clamp(30px,5vh,48px);display:flex;flex-wrap:wrap;gap:14px;}
+    section.end .eyebrow{color:rgba(255,255,255,.85);margin-bottom:28px;}
+
+    footer{padding:40px 0 60px;border-top:1px solid var(--line);}
+    footer .row{display:flex;flex-wrap:wrap;gap:18px;justify-content:space-between;color:var(--mute);}
+    footer .brand{font-family:"Anton",sans-serif;letter-spacing:.05em;font-size:1.2rem;color:var(--ink);}
+
+    /* reveal */
+    [data-reveal]{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .7s ease;}
+    [data-reveal].in{opacity:1;transform:none;}
+    @media (prefers-reduced-motion:reduce){[data-reveal]{opacity:1;transform:none;transition:none;}}
+    @media (max-width:640px){
+      ul.points li{grid-template-columns:34px 1fr;}
+      .hero .meta{gap:14px;}
+    }
+  </style>
+</head>
+<body>
+
+  <header class="bar" id="bar">
+    <div class="brand">RE/RΔN</div>
+    <div class="right">
+      <span class="mono" style="color:var(--mute)">For Physios</span>
+      <a class="try" href="/">Open the app</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- HERO -->
+    <div class="wrap">
+      <section class="hero">
+        <div class="eyebrow mono"><span class="dash"></span>Field Notes Nº 01 — For Physios</div>
+        <h1 data-reveal>You wrote a great plan.<br/>They lost it by <em>Tuesday.</em></h1>
+        <p class="lede" data-reveal>Rehab only works when it gets done. RE/RΔN is a small, honest app that puts your prescription in your patient's pocket — the reps, the form, and a place to log it. No portal. No subscription. No fluff.</p>
+        <div class="cta" data-reveal>
+          <a class="btn solid" href="#what">See what it does ↓</a>
+          <a class="btn ghost" href="/">Try the athlete app →</a>
+        </div>
+        <div class="meta mono" data-reveal>
+          <span>Early access · v0.1</span>
+          <span>Runs on your phone</span>
+          <span>Your data stays yours</span>
+        </div>
+      </section>
+    </div>
+
+    <!-- 01 THE GAP -->
+    <div class="wrap">
+      <section class="band">
+        <div class="sec-head mono" data-reveal><span class="num">01</span><span class="lbl">The Gap</span></div>
+        <h2 data-reveal>It evaporates between your room and theirs.</h2>
+        <div class="body" data-reveal>
+          The handout gets buried. The form gets forgotten. The reps get guessed. You find out it wasn't done at the next appointment — <strong>if it comes up at all.</strong> Adherence is the quiet variable wrecking your outcomes, and right now you can't see it.
+          <div class="pull red">This isn't a motivation problem. It's a tooling problem.</div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 02 WHAT IT IS -->
+    <div class="wrap" id="what">
+      <section class="band">
+        <div class="sec-head mono" data-reveal><span class="num">02</span><span class="lbl">What it is</span></div>
+        <h2 data-reveal>A daily checklist they'll actually open.</h2>
+        <div class="body" data-reveal>Built for runners carrying rehab, strength and mileage all at once — the people most likely to skip the boring, important work.</div>
+        <ul class="points">
+          <li data-reveal><span class="ix">01</span><span class="t"><b>Every move, fully loaded.</b><span class="sub">Sets, reps and weight on each exercise — with a reference picture and a video so the form survives the car park.</span></span></li>
+          <li data-reveal><span class="ix">02</span><span class="t"><b>They tick it off. You get a signal.</b><span class="sub">Patients mark work done and leave a note on how it felt. Adherence stops being invisible.</span></span></li>
+          <li data-reveal><span class="ix">03</span><span class="t"><b>Pocket-sized, private, offline.</b><span class="sub">Installs to the home screen, works without signal, and keeps the data on their device — not ours.</span></span></li>
+          <li data-reveal><span class="ix">04</span><span class="t"><b>Write it in plain language.</b><span class="sub">Type the week the way you'd say it; it gets structured into a clean, shareable plan.</span></span></li>
+          <li data-reveal><span class="ix">05</span><span class="t"><b>Re-issue without erasing.</b><span class="sub">Progress the plan whenever you like — their logged history stays intact.</span></span></li>
+        </ul>
+      </section>
+    </div>
+
+    <!-- 03 WHAT IT ISN'T (dark) -->
+    <section class="dark">
+      <div class="wrap">
+        <div style="padding:clamp(64px,11vh,140px) 0;">
+          <div class="sec-head mono" data-reveal><span class="num">03</span><span class="lbl">What it isn't</span></div>
+          <h2 data-reveal>We'd rather tell you now.</h2>
+          <div class="body" data-reveal>No vapourware, no roadmap theatre. Here's exactly where it stops today.</div>
+          <ul class="points">
+            <li data-reveal><span class="ix">—</span><span class="t"><b>No accounts, no cloud.</b><span class="sub">Sharing a plan is a file, not a live link or a chat thread.</span></span></li>
+            <li data-reveal><span class="ix">—</span><span class="t"><b>The pictures are a guide, not gospel.</b><span class="sub">Reference images come from an open library. Not clinically validated — your judgement still rules.</span></span></li>
+            <li data-reveal><span class="ix">—</span><span class="t"><b>No pain scale, RPE or asymmetry tracking.</b><span class="sub">Yet. It logs done / not-done and a free-text note.</span></span></li>
+            <li data-reveal><span class="ix">—</span><span class="t"><b>No dashboards or load monitoring.</b><span class="sub">No graphs, no risk scores, no analytics.</span></span></li>
+            <li data-reveal><span class="ix">—</span><span class="t"><b>It is not a medical device.</b><span class="sub">And it won't pretend to be one.</span></span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 04 THE ASK -->
+    <div class="wrap">
+      <section class="band">
+        <div class="sec-head mono" data-reveal><span class="num">04</span><span class="lbl">The ask</span></div>
+        <h2 data-reveal>I don't want applause. I want the holes.</h2>
+        <div class="body" data-reveal>You've seen a hundred apps promise to fix adherence. Pressure-test this one like you'd want to.</div>
+        <ul class="points">
+          <li data-reveal><span class="ix">Q1</span><span class="t">Can you express a <b>real</b> prescription here — tempo, holds, progressions, the cues that matter?</span></li>
+          <li data-reveal><span class="ix">Q2</span><span class="t">Are the pictures and videos <b>right</b> — or is any of it misleading enough to retrain a bad pattern?</span></li>
+          <li data-reveal><span class="ix">Q3</span><span class="t">Would you hand this to a patient over your current sheet? <b>Where does it fall down?</b></span></li>
+          <li data-reveal><span class="ix">Q4</span><span class="t">What's the <b>one missing thing</b> between "neat" and "I'd use this on Monday"?</span></li>
+        </ul>
+      </section>
+    </div>
+
+    <!-- CTA -->
+    <section class="end">
+      <div class="wrap">
+        <div style="padding:clamp(64px,11vh,140px) 0;">
+          <div class="eyebrow mono" data-reveal><span>Fifteen minutes · Total honesty</span></div>
+          <h2 class="display" style="font-size:clamp(2.2rem,6vw,4.6rem);margin:0 0 .4em;max-width:16ch;" data-reveal>Open it. Try to break it. Then tell me straight.</h2>
+          <div class="body" data-reveal>Load a plan, run through a day, and find the cracks. Then send me the one thing that would make you keep it — and the one that would make you bin it.</div>
+          <div class="cta" data-reveal>
+            <a class="btn solid" href="mailto:chinwalic@gmail.com?subject=RE%2FR%CE%94N%20%E2%80%94%20physio%20feedback">Send me the brutal version</a>
+            <a class="btn" href="/">Open the app →</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="wrap">
+      <footer>
+        <div class="row">
+          <span class="brand">RE / RΔN</span>
+          <span class="mono">Made for runners who rehab · Not a medical device · Your data stays yours</span>
+        </div>
+      </footer>
+    </div>
+  </main>
+
+  <script>
+    // sticky bar shadow
+    const bar=document.getElementById('bar');
+    const onScroll=()=>bar.classList.toggle('stuck',window.scrollY>8);
+    onScroll();addEventListener('scroll',onScroll,{passive:true});
+
+    // reveal on scroll
+    const io=new IntersectionObserver((es)=>{
+      es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+    },{rootMargin:'0px 0px -8% 0px',threshold:.08});
+    document.querySelectorAll('[data-reveal]').forEach((el,i)=>{
+      el.style.transitionDelay=(Math.min(i%6,5)*40)+'ms';
+      io.observe(el);
+    });
+  </script>
+</body>
+</html>
