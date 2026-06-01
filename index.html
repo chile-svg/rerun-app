@@ -3022,6 +3022,20 @@ function VideoModal({ exercise, onClose }) {
           )}
         </div>
 
+        {Array.isArray(exercise.cues) && exercise.cues.length > 0 && (
+          <div className="border-l-4 border-[#c8202b] bg-[#e8e4d9] px-3 py-2.5">
+            <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#0a0a0a]/60 mb-1.5">— CUES —</p>
+            <ol className="space-y-1">
+              {exercise.cues.map((cue, i) => (
+                <li key={i} className="flex gap-2 text-xs leading-relaxed text-[#0a0a0a]/80">
+                  <span className="font-mono font-bold text-[#c8202b]">{i + 1}.</span>
+                  <span>{cue}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+
         {showImage && (
           <div className="space-y-1">
             <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#0a0a0a]/50 text-center">— REFERENCE —</p>

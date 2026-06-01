@@ -277,6 +277,151 @@
     }
 
     // ====================================================================
+    // Reference image CAROUSEL for one exercise.
+    // Candidates merged (dedup by URL) in priority order:
+    //   1) ranked images from /api/enrich (passed via enrichImages, best-first)
+    //   2) client fallback from the exercise library (searchExercise)
+    // Navigating selects the shown image as the reference (imageUrl + imageAuto false).
+    // ====================================================================
+    function ImageCarousel({ name, imageUrl, imageAuto, enrichImages, onChange }) {
+      const [clientImages, setClientImages] = useState([]); // urls from the library
+      const [broken, setBroken] = useState({}); // url -> true when <img> errored
+      const [idx, setIdx] = useState(0);
+      const [pasteUrl, setPasteUrl] = useState('');
+
+      // Load client-fallback images whenever the name changes.
+      useEffect(() => {
+        let cancelled = false;
+        (async () => {
+          const matches = await searchExercise(name || '', 8);
+          if (cancelled) return;
+          const urls = [];
+          for (const m of (matches || [])) {
+            if (m && m.imageUrl) urls.push(String(m.imageUrl));
+            if (m && m.secondaryImageUrl) urls.push(String(m.secondaryImageUrl));
+          }
+          setClientImages(urls);
+        })();
+        return () => { cancelled = true; };
+      }, [name]);
+
+      // Merge ranked (enrich) in front of client, dedup by URL, drop broken/empty.
+      const candidates = useMemo(() => {
+        const seen = new Set();
+        const out = [];
+        const push = (u) => {
+          const url = (u || '').trim();
+          if (!url || seen.has(url) || broken[url]) return;
+          seen.add(url); out.push(url);
+        };
+        (enrichImages || []).forEach(push);
+        clientImages.forEach(push);
+        return out;
+      }, [enrichImages, clientImages, broken]);
+
+      // Keep idx in range. When candidates shift, default to the currently
+      // selected imageUrl if it's still present, else the first (top pick).
+      useEffect(() => {
+        if (candidates.length === 0) { if (idx !== 0) setIdx(0); return; }
+        const cur = (imageUrl || '').trim();
+        const found = cur ? candidates.indexOf(cur) : -1;
+        if (found >= 0) { if (found !== idx) setIdx(found); }
+        else if (idx >= candidates.length) { setIdx(0); }
+      }, [candidates]);
+
+      // Default selection: when auto and we have candidates, point imageUrl at
+      // the top pick so the export carries it without manual navigation.
+      useEffect(() => {
+        if (imageAuto !== false && candidates.length) {
+          const top = candidates[0];
+          if (top && top !== (imageUrl || '').trim()) {
+            onChange({ imageUrl: top, imageAuto: true });
+          }
+        }
+        // eslint-disable-next-line
+      }, [candidates]);
+
+      const go = (next) => {
+        if (!candidates.length) return;
+        const n = (next + candidates.length) % candidates.length;
+        setIdx(n);
+        // Manual navigation pins the choice so enrich won't overwrite it.
+        onChange({ imageUrl: candidates[n], imageAuto: false });
+      };
+
+      const current = candidates[idx] || '';
+      const total = candidates.length;
+
+      return (
+        <div className="space-y-1.5">
+          <p className="label-mono text-[#0a0a0a]/50">— Reference —</p>
+          {total > 0 ? (
+            <div className="space-y-1.5">
+              <div className="relative border-2 border-[#0a0a0a] bg-[#e8e4d9] overflow-hidden">
+                <img
+                  key={current}
+                  src={current}
+                  alt={`${name} reference`}
+                  className="w-full h-auto block max-h-64 object-contain mx-auto"
+                  onError={() => setBroken((b) => ({ ...b, [current]: true }))}
+                />
+                {total > 1 && (
+                  <>
+                    <button type="button" onClick={() => go(idx - 1)}
+                      className="absolute left-1 top-1/2 -translate-y-1/2 bg-[#0a0a0a] text-[#f5f3ee] border-2 border-[#0a0a0a] px-1.5 py-2 active:scale-95 transition" aria-label="Previous image">
+                      <Icon name="ChevronLeft" size={16} />
+                    </button>
+                    <button type="button" onClick={() => go(idx + 1)}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 bg-[#0a0a0a] text-[#f5f3ee] border-2 border-[#0a0a0a] px-1.5 py-2 active:scale-95 transition" aria-label="Next image">
+                      <Icon name="ChevronRight" size={16} />
+                    </button>
+                    <span className="absolute bottom-1 right-1 bg-[#0a0a0a]/80 text-[#f5f3ee] label-mono px-1.5 py-0.5">{idx + 1} / {total}</span>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="border-2 border-dashed border-[#0a0a0a]/40 bg-[#e8e4d9]/50 px-3 py-6 text-center">
+              <p className="text-xs text-[#0a0a0a]/50">No reference image — use the video below.</p>
+            </div>
+          )}
+          <form onSubmit={(e) => { e.preventDefault(); const u = pasteUrl.trim(); if (u) { onChange({ imageUrl: u, imageAuto: false }); setPasteUrl(''); } }} className="flex gap-2">
+            <input value={pasteUrl} onChange={(e) => setPasteUrl(e.target.value)} placeholder="Paste image URL" className="ci flex-1" />
+            <button type="submit" className="px-3 bg-[#c8202b] text-[#f5f3ee] active:scale-95 transition label-mono border-2 border-[#c8202b]">Use</button>
+          </form>
+        </div>
+      );
+    }
+
+    // ====================================================================
+    // Editable coaching cues list for one exercise.
+    // ====================================================================
+    function CuesEditor({ cues, onChange }) {
+      const list = Array.isArray(cues) ? cues : [];
+      const setAt = (i, v) => { const next = list.slice(); next[i] = v; onChange({ cues: next }); };
+      const removeAt = (i) => { const next = list.slice(); next.splice(i, 1); onChange({ cues: next }); };
+      const add = () => onChange({ cues: [...list, ''] });
+      return (
+        <div className="space-y-1.5">
+          <p className="label-mono text-[#0a0a0a]/50">Coaching cues</p>
+          <div className="space-y-1.5">
+            {list.map((c, i) => (
+              <div key={i} className="flex gap-2">
+                <input value={c} onChange={(e) => setAt(i, e.target.value)} placeholder="e.g. Brace before you descend" className="ci flex-1" />
+                <button type="button" onClick={() => removeAt(i)} className="px-3 border-2 border-[#0a0a0a] bg-[#e8e4d9] active:scale-95 transition" title="Remove cue" aria-label="Remove cue">
+                  <Icon name="X" size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={add} className="label-mono text-[#c8202b] flex items-center gap-1 active:scale-95 transition">
+            <Icon name="Plus" size={11} /> Add cue
+          </button>
+        </div>
+      );
+    }
+
+    // ====================================================================
     // YouTube reference block for one exercise
     // ====================================================================
     function VideoRef({ name, video, videoAuto, onChange }) {
@@ -397,24 +542,7 @@
     // ====================================================================
     // One editable exercise card
     // ====================================================================
-    function ExerciseCard({ ex, index, onChange, onDelete }) {
-      // Debounced image re-match when the name changes.
-      useEffect(() => {
-        let cancelled = false;
-        const t = setTimeout(async () => {
-          const m = await matchExercise(ex.name);
-          if (cancelled) return;
-          // Only auto-update if the coach hasn't manually pinned an image for a different name.
-          if (m && (m.imageUrl !== ex.imageUrl || ex.imageAuto)) {
-            onChange({ imageUrl: m.imageUrl || '', imageAuto: true });
-          } else if (!m && ex.imageAuto) {
-            onChange({ imageUrl: '', imageAuto: true });
-          }
-        }, 450);
-        return () => { cancelled = true; clearTimeout(t); };
-        // eslint-disable-next-line
-      }, [ex.name]);
-
+    function ExerciseCard({ ex, index, enrichImages, onChange, onDelete }) {
       return (
         <div className="border-2 border-[#0a0a0a] bg-[#f5f3ee]">
           <div className="flex items-stretch bg-[#4a3528] text-[#f5f3ee] border-b-2 border-[#0a0a0a]">
@@ -459,16 +587,20 @@
               <input value={ex.notes} onChange={(e) => onChange({ notes: e.target.value })} placeholder="Coaching cue (optional)" className="ci" />
             </div>
 
+            <CuesEditor cues={ex.cues} onChange={onChange} />
+
             {ex.raw && (
               <p className="text-[11px] text-[#0a0a0a]/40 font-mono leading-snug border-l-2 border-[#0a0a0a]/20 pl-2">
                 parsed from: “{ex.raw}”
               </p>
             )}
 
-            <ReferenceImage
+            <ImageCarousel
               name={ex.name}
               imageUrl={ex.imageUrl}
-              onPick={(r) => onChange({ imageUrl: r.imageUrl || '', imageAuto: false })}
+              imageAuto={ex.imageAuto}
+              enrichImages={enrichImages}
+              onChange={onChange}
             />
 
             <VideoRef name={ex.name} video={ex.video} videoAuto={ex.videoAuto} onChange={onChange} />
@@ -493,6 +625,7 @@
           video: youtubeId(ex.video) ? String(ex.video).trim() : (ex.video ? String(ex.video).trim() : ''),
           image: ex.imageUrl || '',
           notes: String(ex.notes || ''),
+          cues: Array.isArray(ex.cues) ? ex.cues.filter(c => String(c).trim()).map(c => String(c).trim()) : [],
         };
         if (!e.name) return; // skip blank cards
         const day = normalizeDay(ex.day);
@@ -541,6 +674,8 @@
       const [error, setError] = useState('');
       const [summary, setSummary] = useState('');
       const [exercises, setExercises] = useState([]);
+      const [enrichByName, setEnrichByName] = useState({}); // lowercased name -> [ranked image urls]
+      const [enrichLoading, setEnrichLoading] = useState(false); // image ranking in progress
       const [titles, setTitles] = useState({}); // weekday -> title
       const [copied, setCopied] = useState(false);
       const [exported, setExported] = useState(false);
@@ -622,21 +757,44 @@
             weight: String(ex.weight || ''),
             day: normalizeDay(ex.day),
             notes: String(ex.notes || ''),
+            cues: Array.isArray(ex.cues) ? ex.cues.map(String) : [],
             raw: String(ex.raw || ''),
             video: '',
             videoAuto: true, // allow auto video search/pick
             imageUrl: '',
             imageAuto: true, // allow auto image matching
           }));
-          // pre-fill images
-          for (const m of mapped) {
-            const match = await matchExercise(m.name);
-            if (match && match.imageUrl) m.imageUrl = match.imageUrl;
-          }
           setExercises(mapped);
+          setEnrichByName({});
           setSummary(String(data.summary || ''));
           setTitles({});
           setScreen('review');
+
+          // Fire-and-forget image ranking. SLOW — never blocks the review screen.
+          // On success we merge ranked images in front of the client carousel for
+          // exercises the coach hasn't manually overridden (imageAuto !== false).
+          setEnrichLoading(true);
+          (async () => {
+            try {
+              const er = await fetch('/api/enrich', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-coach-pass': pass },
+                body: JSON.stringify({ exercises: mapped.map((m) => ({ name: m.name })) }),
+              });
+              if (!er.ok) return; // 401/503/etc → silently keep client carousel
+              const ed = await er.json().catch(() => ({}));
+              const results = Array.isArray(ed.results) ? ed.results : [];
+              if (!results.length) return;
+              const next = {};
+              for (const r of results) {
+                if (!r || !r.name) continue;
+                const imgs = Array.isArray(r.images) ? r.images.map(String).filter(Boolean) : [];
+                if (imgs.length) next[String(r.name).toLowerCase()] = imgs;
+              }
+              if (Object.keys(next).length) setEnrichByName(next);
+            } catch (_) { /* enhancement only — ignore failures */ }
+            finally { setEnrichLoading(false); }
+          })();
         } catch (e) {
           setError('Could not reach the server. Your text is kept — check your connection and try again.');
         } finally {
@@ -647,7 +805,7 @@
       const updateEx = (id, patch) => setExercises((arr) => arr.map((e) => e.id === id ? { ...e, ...patch } : e));
       const deleteEx = (id) => setExercises((arr) => arr.filter((e) => e.id !== id));
       const addEx = () => setExercises((arr) => [...arr, {
-        id: newId(), name: '', sets: 3, reps: '', weight: '', day: '', notes: '', raw: '', video: '', videoAuto: true, imageUrl: '', imageAuto: true,
+        id: newId(), name: '', sets: 3, reps: '', weight: '', day: '', notes: '', cues: [], raw: '', video: '', videoAuto: true, imageUrl: '', imageAuto: true,
       }]);
 
       const exportObj = useMemo(() => buildExport(exercises, weekStart), [exercises, weekStart, titles]);
@@ -787,9 +945,16 @@
                 </div>
               )}
 
+              {enrichLoading && (
+                <div className="flex items-center gap-2 border-2 border-dashed border-[#0a0a0a]/40 bg-[#e8e4d9]/60 px-3 py-2">
+                  <Icon name="RefreshCw" size={13} className="animate-spin text-[#c8202b]" />
+                  <p className="label-mono text-[#0a0a0a]/60">Finding the clearest reference images… you can review &amp; edit now.</p>
+                </div>
+              )}
+
               <div className="space-y-4">
                 {exercises.map((ex, i) => (
-                  <ExerciseCard key={ex.id} ex={ex} index={i} onChange={(p) => updateEx(ex.id, p)} onDelete={() => deleteEx(ex.id)} />
+                  <ExerciseCard key={ex.id} ex={ex} index={i} enrichImages={enrichByName[String(ex.name || '').toLowerCase()] || null} onChange={(p) => updateEx(ex.id, p)} onDelete={() => deleteEx(ex.id)} />
                 ))}
               </div>
 

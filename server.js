@@ -47,10 +47,11 @@ const PARSE_SCHEMA = {
           weight: { type: Type.STRING },
           day: { type: Type.STRING },
           notes: { type: Type.STRING },
+          cues: { type: Type.ARRAY, items: { type: Type.STRING } },
           raw: { type: Type.STRING },
         },
-        required: ['name', 'sets', 'reps', 'weight', 'day', 'notes', 'raw'],
-        propertyOrdering: ['name', 'sets', 'reps', 'weight', 'day', 'notes', 'raw'],
+        required: ['name', 'sets', 'reps', 'weight', 'day', 'notes', 'cues', 'raw'],
+        propertyOrdering: ['name', 'sets', 'reps', 'weight', 'day', 'notes', 'cues', 'raw'],
       },
     },
     summary: { type: Type.STRING },
@@ -84,6 +85,13 @@ Field rules:
 - weight: STRING (e.g. "80 kg", "135 lb", "bodyweight"). "" if no weight given.
 - day: STRING day-of-week if the coach grouped by day, else "".
 - notes: STRING of cues/tempo/RPE/rest, "" if none.
+- cues: an ARRAY of 3-5 short, imperative COACHING CUES for performing the
+  exercise well and safely — setup, the key execution points, and one common
+  fault to avoid. Physio / S&C quality, each a concise phrase (e.g.
+  "Brace your core before you descend", "Keep shins vertical", "Drive through
+  mid-foot", "Don't let the knees cave"). ALWAYS generate good cues from the
+  canonical exercise even if the coach wrote none; tailor them if the coach gave
+  specific instructions.
 - raw: the exact source fragment the coach wrote for that exercise.
 
 Never invent exercises that were not mentioned. If weight/sets/reps are not given,
@@ -237,6 +245,194 @@ app.get('/api/youtube', async (req, res) => {
   } catch (err) {
     console.error('GET /api/youtube failed:', err);
     return res.status(500).json({ error: friendlyApiError(err, 'YOUTUBE_API_KEY') });
+  }
+});
+
+// --- POST /api/enrich --------------------------------------------------------
+// For each exercise name, Gemini fires a search_exercise_library tool against
+// the open free-exercise-db catalog, then LOOKS AT the candidate images (vision)
+// and ranks the clearest / most representative ones. Returns an ordered list of
+// image URLs per exercise so the coach UI can show a best-first carousel.
+//
+// This is a best-effort ENHANCEMENT: on any failure (no key, catalog down, tool
+// or vision error) it returns { results: [] } (HTTP 200) so the client falls
+// back to its own client-side library search. Optional COACH_PASSCODE gate.
+const EXDB_JSON = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/dist/exercises.json';
+const EXDB_IMG_BASE = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises/';
+let _catalog = null;
+let _catalogAt = 0;
+const CATALOG_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+const enrichCache = new Map(); // exercise name -> { at, value }
+const ENRICH_TTL_MS = 1000 * 60 * 60 * 24; // 24h
+
+function normName(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+async function getCatalog() {
+  if (_catalog && Date.now() - _catalogAt < CATALOG_TTL_MS) return _catalog;
+  const r = await fetch(EXDB_JSON);
+  if (!r.ok) throw new Error(`exercise catalog fetch failed (${r.status})`);
+  const data = await r.json();
+  _catalog = (Array.isArray(data) ? data : [])
+    .map((e) => ({
+      name: e.name || '',
+      equipment: e.equipment || '',
+      primaryMuscles: e.primaryMuscles || [],
+      category: e.category || '',
+      images: (e.images || []).map((p) => EXDB_IMG_BASE + p),
+      _norm: normName(e.name || ''),
+    }))
+    .filter((e) => e.name && e.images.length);
+  _catalogAt = Date.now();
+  return _catalog;
+}
+
+// Lightweight token-overlap scorer; the LLM supplies a good (expanded) query.
+function searchExerciseLibrary(catalog, query, limit) {
+  const qTokens = normName(query).split(' ').filter(Boolean);
+  if (!qTokens.length) return [];
+  const qset = new Set(qTokens);
+  return catalog
+    .map((e) => {
+      const eTokens = e._norm.split(' ').filter(Boolean);
+      if (!eTokens.length) return { e, s: 0 };
+      const eset = new Set(eTokens);
+      let inter = 0;
+      for (const t of qset) if (eset.has(t)) inter++;
+      const union = new Set([...qTokens, ...eTokens]).size;
+      let s = (inter / qTokens.length) * 0.6 + (inter / union) * 0.4;
+      if (e._norm.includes(qTokens.join(' '))) s += 0.15;
+      return { e, s };
+    })
+    .filter((x) => x.s > 0.15)
+    .sort((a, b) => b.s - a.s)
+    .slice(0, limit || 5)
+    .map((x) => x.e);
+}
+
+async function fetchImageBase64(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`image fetch ${r.status}`);
+  const buf = Buffer.from(await r.arrayBuffer());
+  return buf.toString('base64');
+}
+
+// Enrich one exercise: tool-call search -> vision rank -> ordered image URLs.
+async function enrichOne(ai, catalog, name) {
+  // Phase 1 — let the model fire the search tool (deterministic fallback if it doesn't).
+  let query = name;
+  try {
+    const tools = [{
+      functionDeclarations: [{
+        name: 'search_exercise_library',
+        description: 'Search the open exercise image database for candidate reference images. Pass a clear, canonical exercise name (expand abbreviations, e.g. RDL -> romanian deadlift).',
+        parameters: {
+          type: Type.OBJECT,
+          properties: { query: { type: Type.STRING, description: 'Canonical exercise name or keywords' } },
+          required: ['query'],
+        },
+      }],
+    }];
+    const first = await ai.models.generateContent({
+      model: MODEL,
+      contents: [{ role: 'user', parts: [{ text: `Find reference-image candidates for the exercise "${name}". Call search_exercise_library with the best canonical query.` }] }],
+      config: { tools, temperature: 0 },
+    });
+    const calls = (first.functionCalls && first.functionCalls.length) ? first.functionCalls : [];
+    if (calls.length && calls[0].args && calls[0].args.query) query = String(calls[0].args.query);
+  } catch (_) { /* fall back to raw name */ }
+
+  let candidates = searchExerciseLibrary(catalog, query, 5);
+  if (!candidates.length && query !== name) candidates = searchExerciseLibrary(catalog, name, 5);
+  if (!candidates.length) return { name, images: [] };
+
+  const cand = candidates.slice(0, 5).map((e, i) => ({ index: i, name: e.name, images: e.images }));
+
+  // Phase 2 — vision rank: show the model the candidate images and have it pick.
+  try {
+    const withB64 = [];
+    for (const c of cand) {
+      try { withB64.push({ index: c.index, name: c.name, b64: await fetchImageBase64(c.images[0]) }); }
+      catch (_) { /* skip unfetchable image */ }
+    }
+    if (withB64.length > 1) {
+      const labelText = withB64.map((w) => `${w.index} = ${w.name}`).join('; ');
+      const parts = [{
+        text: `These are candidate reference images for the exercise "${name}". Pick the clearest, most anatomically representative photo of THIS exercise for a coach's reference, and rank ALL candidates best-first. The images are provided in this index order: ${labelText}. Respond as JSON {"ranked":[indices]}.`,
+      }];
+      for (const w of withB64) parts.push({ inlineData: { mimeType: 'image/jpeg', data: w.b64 } });
+      const vresp = await ai.models.generateContent({
+        model: MODEL,
+        contents: [{ role: 'user', parts }],
+        config: {
+          temperature: 0,
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: { ranked: { type: Type.ARRAY, items: { type: Type.INTEGER } } },
+            required: ['ranked'],
+            propertyOrdering: ['ranked'],
+          },
+        },
+      });
+      const order = (() => { try { return JSON.parse(vresp.text || '{}').ranked || []; } catch (_) { return []; } })();
+      const byIndex = new Map(cand.map((c) => [c.index, c]));
+      const ranked = [];
+      for (const idx of order) { const c = byIndex.get(idx); if (c) { ranked.push(c); byIndex.delete(idx); } }
+      for (const c of byIndex.values()) ranked.push(c); // append any the model didn't mention
+      const urls = [];
+      for (const c of ranked) for (const u of c.images) if (!urls.includes(u)) urls.push(u);
+      return { name, images: urls };
+    }
+  } catch (_) { /* fall through to search order */ }
+
+  // Fallback: server search order, all images.
+  const urls = [];
+  for (const c of cand) for (const u of c.images) if (!urls.includes(u)) urls.push(u);
+  return { name, images: urls };
+}
+
+app.post('/api/enrich', async (req, res) => {
+  // Same optional passcode gate as /api/parse (this also costs Gemini quota).
+  if (process.env.COACH_PASSCODE) {
+    const given = req.get('x-coach-pass') || (req.body && req.body.passcode) || '';
+    if (given !== process.env.COACH_PASSCODE) {
+      return res.status(401).json({ error: 'Incorrect or missing coach passphrase.' });
+    }
+  }
+
+  const list = req.body && Array.isArray(req.body.exercises) ? req.body.exercises : [];
+  const names = [...new Set(
+    list.map((e) => (e && typeof e.name === 'string' ? e.name.trim() : '')).filter(Boolean)
+  )].slice(0, 40);
+  if (!names.length || !process.env.GEMINI_API_KEY) {
+    return res.status(200).json({ results: [], degraded: !process.env.GEMINI_API_KEY });
+  }
+
+  try {
+    const catalog = await getCatalog();
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY.trim() });
+    const out = [];
+    let i = 0;
+    const POOL = 3;
+    async function worker() {
+      while (i < names.length) {
+        const name = names[i++];
+        const cached = enrichCache.get(name);
+        if (cached && Date.now() - cached.at < ENRICH_TTL_MS) { out.push(cached.value); continue; }
+        let r;
+        try { r = await enrichOne(ai, catalog, name); }
+        catch (_) { r = { name, images: [] }; }
+        enrichCache.set(name, { at: Date.now(), value: r });
+        out.push(r);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(POOL, names.length) }, worker));
+    return res.status(200).json({ results: out });
+  } catch (err) {
+    console.error('POST /api/enrich failed:', err);
+    return res.status(200).json({ results: [], degraded: true }); // never block the coach UI
   }
 });
 

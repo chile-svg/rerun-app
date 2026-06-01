@@ -59,10 +59,10 @@ There's a new coach-facing page at the `/coach` URL — for example `https://you
 The workflow:
 
 1. The coach types the week's exercises in plain language or shorthand — e.g. `back squat 3x8x80kg`, `nordic curl 3 x 6`, one per line.
-2. The page sends that to the server's `/api/parse` endpoint, which uses the **Google Gemini API** to turn it into structured exercises (sets, reps, weight, and a matched reference picture).
-3. Each parsed exercise is shown with a **reference picture** (from the open-source [free-exercise-db](https://github.com/yuhonas/free-exercise-db)) and a **YouTube video** so the coach can review and correct anything that came out wrong.
-4. The coach clicks **Export** to download a plan JSON file (`{ days: [...] }`), with `weight` and `image` carried on each exercise.
-5. The athlete opens the normal app, taps **Import**, and picks that JSON. The new weight shows next to the sets/reps, and the reference picture appears in the exercise's video popup.
+2. The page sends that to the server's `/api/parse` endpoint, which uses the **Google Gemini API** to turn it into structured exercises (sets, reps, weight) **plus editable coaching cues** for each movement. This is fast, so the review screen appears right away.
+3. In the background, `/api/enrich` runs the slower step: Gemini fires a `search_exercise_library` tool against the open-source [free-exercise-db](https://github.com/yuhonas/free-exercise-db), then **looks at the candidate images (vision) and ranks the most representative one**. Each exercise gets a reference-image **carousel** (swap/paste to override) and a **YouTube video**, so the coach can review and correct anything. Cues are editable too. This step is purely additive — if the Gemini key/quota is unavailable it silently falls back to a client-side image search.
+4. The coach clicks **Export** to download a plan JSON file (`{ days: [...] }`), with `weight`, `image`, and `cues` carried on each exercise.
+5. The athlete opens the normal app, taps **Import**, and picks that JSON. Weight shows next to the sets/reps, and the reference picture + coaching cues appear in the exercise's popup.
 
 ### `GEMINI_API_KEY`
 
