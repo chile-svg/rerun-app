@@ -149,10 +149,40 @@ function friendlyApiError(err, keyName) {
   if (/api[_ ]?key not valid|API_KEY_INVALID|invalid.*api key/i.test(msg)) {
     return `The ${keyName} on the server is invalid. Check the key in your environment variables.`;
   }
+  if (/high demand|overload|temporarily|UNAVAILABLE|try again later/i.test(msg)) {
+    return 'Gemini is busy right now (high demand). Give it a few seconds and try again.';
+  }
   if (/quota|rate limit|RESOURCE_EXHAUSTED|exceeded/i.test(msg)) {
-    return 'The API quota was exceeded. Please try again later.';
+    return 'The API quota or rate limit was hit. Try again shortly, or raise your Gemini limits (enable billing).';
   }
   return msg;
+}
+
+// A "high demand" / overloaded / rate-limit / 5xx response from Gemini is almost
+// always transient. Retry the call a few times with exponential backoff + jitter
+// so a demand spike clears before it ever reaches the user.
+function isTransientGemini(err) {
+  const m = (err && err.message ? err.message : String(err)).toLowerCase();
+  const s = err && (err.status || err.code);
+  return (
+    s === 429 || s === 500 || s === 502 || s === 503 || s === 504 ||
+    /high demand|overload|unavailable|temporarily|try again|rate limit|resource_exhausted|\b(429|500|502|503|504)\b/.test(m)
+  );
+}
+
+async function generateWithRetry(ai, params, { tries = 4, baseMs = 600 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt < tries; attempt++) {
+    try {
+      return await ai.models.generateContent(params);
+    } catch (err) {
+      lastErr = err;
+      if (attempt === tries - 1 || !isTransientGemini(err)) throw err;
+      const delay = Math.round(baseMs * Math.pow(2, attempt) * (0.7 + Math.random() * 0.6));
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
 }
 
 // --- POST /api/parse ---------------------------------------------------------
@@ -187,7 +217,7 @@ app.post('/api/parse', async (req, res) => {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY.trim() });
 
-    const response = await ai.models.generateContent({
+    const response = await generateWithRetry(ai, {
       model: MODEL,
       contents: userText,
       config: {
@@ -367,11 +397,11 @@ async function enrichOne(ai, catalog, name, target) {
         },
       }],
     }];
-    const first = await ai.models.generateContent({
+    const first = await generateWithRetry(ai, {
       model: MODEL,
       contents: [{ role: 'user', parts: [{ text: `Find reference-image candidates for the exercise "${name}". Call search_exercise_library with the best canonical query.` }] }],
       config: { tools, temperature: 0 },
-    });
+    }, { tries: 2 });
     const calls = (first.functionCalls && first.functionCalls.length) ? first.functionCalls : [];
     if (calls.length && calls[0].args && calls[0].args.query) query = String(calls[0].args.query);
   } catch (_) { /* fall back to raw name */ }
@@ -395,7 +425,7 @@ async function enrichOne(ai, catalog, name, target) {
         text: `These are candidate reference images for the exercise "${name}". Pick the clearest, most anatomically representative photo of THIS exercise for a coach's reference, and rank ALL candidates best-first.${target ? ` Prefer the image that best shows the loaded / working position relevant to the therapeutic goal "${target}".` : ''} The images are provided in this index order: ${labelText}. Respond as JSON {"ranked":[indices]}.`,
       }];
       for (const w of withB64) parts.push({ inlineData: { mimeType: 'image/jpeg', data: w.b64 } });
-      const vresp = await ai.models.generateContent({
+      const vresp = await generateWithRetry(ai, {
         model: MODEL,
         contents: [{ role: 'user', parts }],
         config: {
@@ -408,7 +438,7 @@ async function enrichOne(ai, catalog, name, target) {
             propertyOrdering: ['ranked'],
           },
         },
-      });
+      }, { tries: 2 });
       const order = (() => { try { return JSON.parse(vresp.text || '{}').ranked || []; } catch (_) { return []; } })();
       const byIndex = new Map(cand.map((c) => [c.index, c]));
       const ranked = [];
@@ -453,7 +483,7 @@ app.post('/api/enrich', async (req, res) => {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY.trim() });
     const out = [];
     let i = 0;
-    const POOL = 3;
+    const POOL = 2; // gentle concurrency — fewer simultaneous calls = fewer overload rejections during spikes
     async function worker() {
       while (i < names.length) {
         const name = names[i++];
