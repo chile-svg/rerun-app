@@ -1220,6 +1220,11 @@ function App() {
           });
 
           setPlan({ ...parsed, days: mergedDays });
+          // Jump the calendar to the imported plan's first day so the user
+          // immediately sees what they imported (a coach plan for next week
+          // would otherwise land on today's empty "no session" state).
+          const firstDate = mergedDays.map(d => d.date).filter(Boolean).sort()[0];
+          if (firstDate) setCursor(firstDate);
           setShowImport(false);
         }
       } catch (err) {

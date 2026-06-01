@@ -90,6 +90,24 @@ The summary is a short human-readable sentence, e.g.
 // swap to gemini-2.5-pro for harder parsing if you ever need it.
 const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
+// Turn a raw upstream/SDK error into a short, friendly message. Google SDK
+// errors often carry the entire JSON error body in err.message; unwrap it and
+// special-case the two things users actually hit: a bad key and quota.
+function friendlyApiError(err, keyName) {
+  let msg = err && err.message ? err.message : String(err);
+  try {
+    const j = JSON.parse(msg);
+    if (j && j.error && j.error.message) msg = j.error.message;
+  } catch (_) { /* not JSON, use as-is */ }
+  if (/api[_ ]?key not valid|API_KEY_INVALID|invalid.*api key/i.test(msg)) {
+    return `The ${keyName} on the server is invalid. Check the key in your environment variables.`;
+  }
+  if (/quota|rate limit|RESOURCE_EXHAUSTED|exceeded/i.test(msg)) {
+    return 'The API quota was exceeded. Please try again later.';
+  }
+  return msg;
+}
+
 // --- POST /api/parse ---------------------------------------------------------
 app.post('/api/parse', async (req, res) => {
   if (!process.env.GEMINI_API_KEY) {
@@ -125,11 +143,24 @@ app.post('/api/parse', async (req, res) => {
     });
 
     // response.text is the concatenated JSON string when responseMimeType is JSON.
-    const parsed = JSON.parse(response.text);
+    const raw = response && response.text;
+    if (!raw) {
+      return res.status(502).json({
+        error: 'The model returned an empty response. Try rephrasing the prescription.',
+      });
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (_) {
+      return res.status(502).json({
+        error: 'The model did not return valid JSON. Please try again.',
+      });
+    }
     return res.status(200).json(parsed);
   } catch (err) {
     console.error('POST /api/parse failed:', err);
-    return res.status(500).json({ error: err && err.message ? err.message : String(err) });
+    return res.status(502).json({ error: friendlyApiError(err, 'GEMINI_API_KEY') });
   }
 });
 
@@ -171,7 +202,7 @@ app.get('/api/youtube', async (req, res) => {
         data && data.error && data.error.message
           ? data.error.message
           : `YouTube API error (${r.status})`;
-      return res.status(r.status === 403 ? 403 : 502).json({ error: msg });
+      return res.status(r.status === 403 ? 403 : 502).json({ error: friendlyApiError(msg, 'YOUTUBE_API_KEY') });
     }
     const results = (data.items || [])
       .map((it) => ({
@@ -190,7 +221,7 @@ app.get('/api/youtube', async (req, res) => {
     return res.status(200).json({ results });
   } catch (err) {
     console.error('GET /api/youtube failed:', err);
-    return res.status(500).json({ error: err && err.message ? err.message : String(err) });
+    return res.status(500).json({ error: friendlyApiError(err, 'YOUTUBE_API_KEY') });
   }
 });
 
