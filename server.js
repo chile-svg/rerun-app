@@ -128,6 +128,67 @@ app.post('/api/parse', async (req, res) => {
   }
 });
 
+// --- GET /api/youtube --------------------------------------------------------
+// Returns real, embeddable YouTube results for a query so the client can embed
+// the top hit and let the user swap. Optional — needs YOUTUBE_API_KEY (a Google
+// Cloud API key with "YouTube Data API v3" enabled). Results are cached
+// in-memory to protect the daily quota: a search costs 100 units and the
+// default quota is 10,000/day (~100 distinct searches), so identical queries
+// (e.g. repeated exercise names) are served from cache.
+const ytCache = new Map(); // q -> { at, results }
+const YT_TTL_MS = 1000 * 60 * 60 * 24; // 24h
+
+app.get('/api/youtube', async (req, res) => {
+  const key = process.env.YOUTUBE_API_KEY;
+  if (!key) {
+    return res.status(503).json({
+      error: 'Server is missing YOUTUBE_API_KEY. Set it to enable in-app video search.',
+    });
+  }
+
+  const q = req.query && typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  if (!q) return res.status(400).json({ error: 'No query provided.' });
+
+  const hit = ytCache.get(q);
+  if (hit && Date.now() - hit.at < YT_TTL_MS) {
+    return res.status(200).json({ results: hit.results, cached: true });
+  }
+
+  try {
+    const url =
+      'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video' +
+      '&videoEmbeddable=true&maxResults=6&safeSearch=none' +
+      `&q=${encodeURIComponent(q)}&key=${encodeURIComponent(key.trim())}`;
+    const r = await fetch(url);
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg =
+        data && data.error && data.error.message
+          ? data.error.message
+          : `YouTube API error (${r.status})`;
+      return res.status(r.status === 403 ? 403 : 502).json({ error: msg });
+    }
+    const results = (data.items || [])
+      .map((it) => ({
+        videoId: it.id && it.id.videoId,
+        title: (it.snippet && it.snippet.title) || '',
+        channel: (it.snippet && it.snippet.channelTitle) || '',
+        thumbnail:
+          (it.snippet &&
+            it.snippet.thumbnails &&
+            it.snippet.thumbnails.medium &&
+            it.snippet.thumbnails.medium.url) ||
+          '',
+      }))
+      .filter((x) => x.videoId);
+    ytCache.set(q, { at: Date.now(), results });
+    return res.status(200).json({ results });
+  } catch (err) {
+    console.error('GET /api/youtube failed:', err);
+    return res.status(500).json({ error: err && err.message ? err.message : String(err) });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`rerun-app server listening on port ${PORT}`);
 });

@@ -71,14 +71,23 @@ Coach mode's parsing needs a Google Gemini API key, set as the `GEMINI_API_KEY` 
 - **With it set:** coach mode parses plans as described above.
 - **Without it:** the athlete app still works completely fine — only the coach `/api/parse` endpoint returns a clear error telling you the key is missing.
 
+### `YOUTUBE_API_KEY` (optional)
+
+Enables the **in-app video player**: the server's `GET /api/youtube` endpoint searches YouTube for each exercise so the page can embed a real, playable clip (auto-picking the top result) and let you swap to another or paste your own link. Needs a Google Cloud API key with **YouTube Data API v3** enabled — create one at [Google Cloud Console](https://console.cloud.google.com/apis/library/youtube.googleapis.com).
+
+- **With it set:** each exercise auto-embeds a relevant clip; coach can swap clips or pin a specific URL, and the chosen link is saved into the exported plan.
+- **Without it:** video blocks fall back to a tap-to-search YouTube link (still works, just not embedded).
+- **Quota note:** a YouTube search costs 100 units against the default 10,000/day quota (~100 distinct searches). The server caches results by query for 24h, so repeated exercise names are free.
+
 ---
 
 ## Local development
 
 ```bash
 npm install
-export GEMINI_API_KEY=your-gemini-api-key   # for coach mode parsing
-npm start                             # runs node server.js
+export GEMINI_API_KEY=your-gemini-api-key      # coach mode parsing
+export YOUTUBE_API_KEY=your-youtube-data-key   # optional: in-app video embeds
+npm start                                       # runs node server.js
 ```
 
 Then open:
