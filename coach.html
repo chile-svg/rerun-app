@@ -93,6 +93,7 @@
       Image: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
       Check: '<polyline points="20 6 9 17 4 12"/>',
       RefreshCw: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/>',
+      Upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
     };
   </script>
 
@@ -186,6 +187,140 @@
       if (!lib || typeof lib.search !== 'function') return [];
       try { return lib.search(query, limit) || []; } catch (_) { return []; }
     }
+
+    // ----- Athlete history extraction -----
+    // Walk a full plan-JSON backup and collapse it into a per-movement history map.
+    // For each movement (keyed by lowercased trimmed name) we keep the most-recent
+    // non-empty curated data (cues/image/video/sets/reps/weight/notes), backfilling
+    // still-empty image/video/cues from older sessions, and count timesSeen.
+    function extractHistory(plan) {
+      const byName = {};
+      const days = (plan && Array.isArray(plan.days)) ? plan.days : [];
+      let minDate = '', maxDate = '';
+      let sessions = 0;
+      // Feedback-loop accounting (#3).
+      let sessionsCompleted = 0;          // sessions explicitly marked completed
+      let sessionsWithStatus = 0;         // sessions that carried a completed flag at all
+      let exercisesPrescribed = 0;        // total per-exercise instances seen
+      let exercisesDone = 0;              // per-exercise instances marked done
+      const feedbackEntries = [];         // { date, feedback }
+      days.forEach((day) => {
+        if (!day || typeof day !== 'object') return;
+        sessions++;
+        const date = typeof day.date === 'string' ? day.date : '';
+        if (date) {
+          if (!minDate || date < minDate) minDate = date;
+          if (!maxDate || date > maxDate) maxDate = date;
+        }
+
+        // Session-level completion + feedback.
+        const hasCompleted = (typeof day.completed === 'boolean');
+        const completed = day.completed === true;
+        if (hasCompleted) { sessionsWithStatus++; if (completed) sessionsCompleted++; }
+        const feedback = typeof day.feedback === 'string' ? day.feedback.trim() : '';
+        if (feedback) feedbackEntries.push({ date, feedback });
+
+        // Per-exercise completion / notes maps (name -> bool / string).
+        const exerciseDone = (day.exerciseDone && typeof day.exerciseDone === 'object') ? day.exerciseDone : {};
+        const exerciseNotes = (day.exerciseNotes && typeof day.exerciseNotes === 'object') ? day.exerciseNotes : {};
+        const doneByKey = {};
+        const fbByKey = {};
+        Object.keys(exerciseDone).forEach((k) => { doneByKey[String(k).trim().toLowerCase()] = !!exerciseDone[k]; });
+        Object.keys(exerciseNotes).forEach((k) => { fbByKey[String(k).trim().toLowerCase()] = String(exerciseNotes[k] || '').trim(); });
+
+        const exs = Array.isArray(day.exercises) ? day.exercises : [];
+        exs.forEach((ex) => {
+          if (!ex || typeof ex !== 'object') return;
+          const rawName = String(ex.name || '').trim();
+          if (!rawName) return;
+          const key = rawName.toLowerCase();
+          const cues = Array.isArray(ex.cues) ? ex.cues.map((c) => String(c).trim()).filter(Boolean) : [];
+          const image = typeof ex.image === 'string' ? ex.image.trim() : '';
+          const video = typeof ex.video === 'string' ? ex.video.trim() : '';
+          const sets = (ex.sets === 0 || ex.sets) ? String(ex.sets) : '';
+          const reps = (ex.reps === 0 || ex.reps) ? String(ex.reps) : '';
+          const weight = (ex.weight === 0 || ex.weight) ? String(ex.weight) : '';
+          const notes = typeof ex.notes === 'string' ? ex.notes.trim() : '';
+
+          // Per-exercise completion: prefer the day's exerciseDone map, fall back
+          // to an inline ex.done flag, else inherit the session's completed flag.
+          let exDone;
+          if (key in doneByKey) exDone = doneByKey[key];
+          else if (typeof ex.done === 'boolean') exDone = ex.done;
+          else if (hasCompleted) exDone = completed;
+          else exDone = undefined;
+          const exFeedback = fbByKey[key] || '';
+
+          exercisesPrescribed++;
+          if (exDone === true) exercisesDone++;
+
+          let rec = byName[key];
+          if (!rec) {
+            rec = { name: rawName, cues: [], image: '', video: '', sets: '', reps: '', weight: '', notes: '', lastDate: '', timesSeen: 0, doneCount: 0, lastDoneDate: '', lastFeedback: '' };
+            byName[key] = rec;
+          }
+          rec.timesSeen++;
+          if (exDone === true) { rec.doneCount++; if (date && (!rec.lastDoneDate || date >= rec.lastDoneDate)) rec.lastDoneDate = date; }
+
+          // Is this entry at least as recent as what we've recorded? (more recent wins)
+          const isNewer = date && (!rec.lastDate || date >= rec.lastDate);
+          if (isNewer) {
+            rec.lastDate = date || rec.lastDate;
+            rec.name = rawName; // freshest display name
+            if (cues.length) rec.cues = cues;
+            if (image) rec.image = image;
+            if (video) rec.video = video;
+            if (sets) rec.sets = sets;
+            if (reps) rec.reps = reps;
+            if (weight) rec.weight = weight;
+            if (notes) rec.notes = notes;
+            if (exFeedback) rec.lastFeedback = exFeedback;
+          }
+          // Backfill anything still empty from any (older) entry.
+          if (!rec.cues.length && cues.length) rec.cues = cues;
+          if (!rec.image && image) rec.image = image;
+          if (!rec.video && video) rec.video = video;
+          if (!rec.sets && sets) rec.sets = sets;
+          if (!rec.reps && reps) rec.reps = reps;
+          if (!rec.weight && weight) rec.weight = weight;
+          if (!rec.notes && notes) rec.notes = notes;
+          if (!rec.lastFeedback && exFeedback) rec.lastFeedback = exFeedback;
+        });
+      });
+      const movements = Object.keys(byName).length;
+      const range = (minDate && maxDate) ? `${minDate} → ${maxDate}` : (minDate || maxDate || '');
+
+      // Adherence: prefer session-level completion when present, else exercises done / prescribed.
+      let adherence = null;
+      if (sessionsWithStatus > 0) adherence = Math.round((sessionsCompleted / sessionsWithStatus) * 100);
+      else if (exercisesPrescribed > 0 && exercisesDone > 0) adherence = Math.round((exercisesDone / exercisesPrescribed) * 100);
+
+      // Most-recent non-empty session feedback (last ~5), newest first.
+      const recentFeedback = feedbackEntries
+        .filter((f) => f.feedback)
+        .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+        .slice(-5)
+        .reverse();
+
+      // Movements often skipped: seen ≥2× but done <50% of the time.
+      const oftenSkipped = Object.values(byName)
+        .filter((r) => r.timesSeen >= 2 && r.doneCount / r.timesSeen < 0.5)
+        .sort((a, b) => (a.doneCount / a.timesSeen) - (b.doneCount / b.timesSeen))
+        .map((r) => r.name);
+
+      return {
+        byName,
+        meta: {
+          movements, sessions, range,
+          adherence,
+          sessionsCompleted, sessionsWithStatus,
+          exercisesDone, exercisesPrescribed,
+          recentFeedback, oftenSkipped,
+        },
+      };
+    }
+
+    const HISTORY_KEY = 'coach_athlete_history_v1';
 
     // ----- IDs -----
     let _idc = 0;
@@ -305,7 +440,12 @@
         return () => { cancelled = true; };
       }, [name]);
 
-      // Merge ranked (enrich) in front of client, dedup by URL, drop broken/empty.
+      // Merge candidates, dedup by URL, drop broken/empty. Priority order:
+      //   0) the currently-selected imageUrl (pasted URL or reused history image)
+      //   1) ranked images from /api/enrich
+      //   2) client fallback from the exercise library
+      // Prepending the current imageUrl ensures a pasted/history image always
+      // shows and stays selected even if it isn't in the enrich/library lists.
       const candidates = useMemo(() => {
         const seen = new Set();
         const out = [];
@@ -314,10 +454,11 @@
           if (!url || seen.has(url) || broken[url]) return;
           seen.add(url); out.push(url);
         };
+        push(imageUrl);
         (enrichImages || []).forEach(push);
         clientImages.forEach(push);
         return out;
-      }, [enrichImages, clientImages, broken]);
+      }, [imageUrl, enrichImages, clientImages, broken]);
 
       // Keep idx in range. When candidates shift, default to the currently
       // selected imageUrl if it's still present, else the first (top pick).
@@ -441,7 +582,11 @@
       // Fetch embeddable results for the exercise name (debounced). We always
       // fetch so "swap" has options; we only auto-fill the export's video while
       // the coach hasn't manually pinned/swapped (videoAuto stays true).
+      // EXCEPTION: when a video is already pinned AND it was set manually or reused
+      // from athlete history (videoAuto === false), skip the search entirely —
+      // just embed the curated clip. This saves quota and respects the choice.
       useEffect(() => {
+        if (pinnedId && videoAuto === false) { setStatus('ok'); setResults([]); return; }
         if (!name || !name.trim()) { setStatus('idle'); setResults([]); return; }
         let cancelled = false;
         setStatus('loading');
@@ -461,7 +606,7 @@
         }, 500);
         return () => { cancelled = true; clearTimeout(t); };
         // eslint-disable-next-line
-      }, [name]);
+      }, [name, pinnedId, videoAuto]);
 
       // A manual pin/selection wins; otherwise embed the current search result.
       const currentId = pinnedId || (results[idx] && results[idx].videoId) || null;
@@ -548,6 +693,10 @@
     // One editable exercise card
     // ====================================================================
     function ExerciseCard({ ex, index, enrichImages, pending, onChange, onDelete }) {
+      const [rehabOpen, setRehabOpen] = useState(false);
+      // Count how many rehab fields carry data, to hint the coach when collapsed.
+      const rehabFilled = [ex.tempo, ex.rpe, ex.side, ex.frequency, ex.equipment, ex.target, ex.painRule, ex.regression, ex.progression, ex.why, ex.cautions]
+        .filter((v) => String(v || '').trim()).length;
       return (
         <div className="border-2 border-[#0a0a0a] bg-[#f5f3ee]">
           <div className="flex items-stretch bg-[#4a3528] text-[#f5f3ee] border-b-2 border-[#0a0a0a]">
@@ -594,6 +743,88 @@
 
             <CuesEditor cues={ex.cues} onChange={onChange} />
 
+            {/* ---- Collapsible rehab / physio details (#1 #6 #7) ---- */}
+            <div className="border-2 border-[#1c2942]/30">
+              <button
+                type="button"
+                onClick={() => setRehabOpen((o) => !o)}
+                className="w-full flex items-center justify-between px-3 py-2 bg-[#e8e4d9] active:scale-[0.99] transition"
+              >
+                <span className="label-mono text-[#1c2942] flex items-center gap-1.5">
+                  <Icon name={rehabOpen ? 'ChevronLeft' : 'ChevronRight'} size={12} />
+                  Rehab details
+                  {rehabFilled > 0 && <span className="text-[#c8202b]">· {rehabFilled} set</span>}
+                </span>
+                <span className="label-mono text-[#0a0a0a]/40">{rehabOpen ? 'hide' : 'edit'}</span>
+              </button>
+
+              {rehabOpen && (
+                <div className="p-3 space-y-3 border-t-2 border-[#1c2942]/20">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="label-mono text-[#0a0a0a]/50 mb-1">Tempo</p>
+                      <input value={ex.tempo || ''} onChange={(e) => onChange({ tempo: e.target.value })} placeholder="3-0-3" className="ci" />
+                    </div>
+                    <div>
+                      <p className="label-mono text-[#0a0a0a]/50 mb-1">RPE</p>
+                      <input value={ex.rpe || ''} onChange={(e) => onChange({ rpe: e.target.value })} placeholder="7 / RPE 7-8" className="ci" />
+                    </div>
+                    <div>
+                      <p className="label-mono text-[#0a0a0a]/50 mb-1">Side</p>
+                      <select value={ex.side || ''} onChange={(e) => onChange({ side: e.target.value })} className="ci">
+                        <option value="">—</option>
+                        <option value="left">left</option>
+                        <option value="right">right</option>
+                        <option value="bilateral">bilateral</option>
+                      </select>
+                    </div>
+                    <div>
+                      <p className="label-mono text-[#0a0a0a]/50 mb-1">Frequency</p>
+                      <select value={ex.frequency || ''} onChange={(e) => onChange({ frequency: e.target.value })} className="ci">
+                        <option value="">once</option>
+                        <option value="daily">daily</option>
+                        <option value="2x daily">2x daily</option>
+                        <option value="every other day">every other day</option>
+                        <option value="3x per week">3x per week</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="label-mono text-[#0a0a0a]/50 mb-1">Equipment</p>
+                      <input value={ex.equipment || ''} onChange={(e) => onChange({ equipment: e.target.value })} placeholder="band, dumbbell…" className="ci" />
+                    </div>
+                    <div>
+                      <p className="label-mono text-[#0a0a0a]/50 mb-1">Target (goal)</p>
+                      <input value={ex.target || ''} onChange={(e) => onChange({ target: e.target.value })} placeholder="calf capacity" className="ci" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="label-mono text-[#0a0a0a]/50 mb-1">Pain rule</p>
+                    <textarea value={ex.painRule || ''} onChange={(e) => onChange({ painRule: e.target.value })} rows={2} placeholder="OK up to 3/10, settles by next morning." className="ci resize-y leading-relaxed" />
+                  </div>
+                  <div>
+                    <p className="label-mono text-[#0a0a0a]/50 mb-1">Regression (make easier)</p>
+                    <textarea value={ex.regression || ''} onChange={(e) => onChange({ regression: e.target.value })} rows={2} placeholder="Double-leg version / reduce range." className="ci resize-y leading-relaxed" />
+                  </div>
+                  <div>
+                    <p className="label-mono text-[#0a0a0a]/50 mb-1">Progression (make harder)</p>
+                    <textarea value={ex.progression || ''} onChange={(e) => onChange({ progression: e.target.value })} rows={2} placeholder="Add load / single-leg next week." className="ci resize-y leading-relaxed" />
+                  </div>
+                  <div>
+                    <p className="label-mono text-[#0a0a0a]/50 mb-1">Why (patient-facing)</p>
+                    <textarea value={ex.why || ''} onChange={(e) => onChange({ why: e.target.value })} rows={2} placeholder="Builds tendon load tolerance." className="ci resize-y leading-relaxed" />
+                  </div>
+                  <div>
+                    <p className="label-mono text-[#0a0a0a]/50 mb-1">Cautions</p>
+                    <textarea value={ex.cautions || ''} onChange={(e) => onChange({ cautions: e.target.value })} rows={2} placeholder="Stop if sharp pain or swelling." className="ci resize-y leading-relaxed" />
+                  </div>
+                </div>
+              )}
+            </div>
+
             {ex.raw && (
               <p className="text-[11px] text-[#0a0a0a]/40 font-mono leading-snug border-l-2 border-[#0a0a0a]/20 pl-2">
                 parsed from: “{ex.raw}”
@@ -616,53 +847,96 @@
     }
 
     // ====================================================================
+    // Frequency → dates (#2). Given a frequency string, the week start and the
+    // exercise's assigned date, return the list of ISO dates it should land on.
+    //   blank / once / weekly / 2x daily / unmatched → [assignedDate]
+    //   daily (not 2x / not every other)             → all 7 days
+    //   every other / alternate / eod                → offsets [0,2,4,6]
+    //   N per week (3x/week, 3 x week, 2x week)       → spread N over the week
+    // ====================================================================
+    function frequencyDates(frequency, weekStart, assignedDate) {
+      const base = assignedDate || weekStart;
+      const f = String(frequency || '').trim().toLowerCase();
+      if (!f) return [base];
+      const week = (offs) => offs.map((o) => addDays(weekStart, o));
+
+      // "2x daily" stays on its single assigned day (label travels with it).
+      if (/2\s*x?\s*daily|twice\s*(a|per)?\s*day/.test(f)) return [base];
+      // every other day / alternate / eod
+      if (/every\s*other|alternate|eod/.test(f)) return week([0, 2, 4, 6]);
+      // daily (but not the 2x/every-other cases handled above)
+      if (/daily|every\s*day/.test(f)) return week([0, 1, 2, 3, 4, 5, 6]);
+      // N per week, e.g. "3x/week", "3 x week", "2x week", "3 per week"
+      const m = f.match(/(\d+)\s*x?\s*(?:\/|per|a)?\s*week/);
+      if (m) {
+        const n = parseInt(m[1], 10) || 0;
+        if (n === 2) return week([0, 3]);
+        if (n === 3) return week([0, 2, 4]);
+        if (n >= 4) return week([0, 2, 4, 6]);
+        return [base]; // 1x/week or 0 → single assigned day
+      }
+      return [base];
+    }
+
+    // ====================================================================
     // Build the export object from reviewed exercises
     // ====================================================================
-    function buildExport(exercises, weekStart) {
-      // Group by weekday; Unassigned all land on weekStart as one "This Week" day.
-      const byDay = {};
-      const unassigned = [];
-      exercises.forEach((ex) => {
-        const e = {
-          name: (ex.name || '').trim(),
-          sets: parseInt(ex.sets, 10) || 0,
-          reps: String(ex.reps || ''),
-          weight: String(ex.weight || ''),
-          video: youtubeId(ex.video) ? String(ex.video).trim() : (ex.video ? String(ex.video).trim() : ''),
-          image: ex.imageUrl || '',
-          notes: String(ex.notes || ''),
-          cues: Array.isArray(ex.cues) ? ex.cues.filter(c => String(c).trim()).map(c => String(c).trim()) : [],
-        };
-        if (!e.name) return; // skip blank cards
-        const day = normalizeDay(ex.day);
-        if (day) { (byDay[day] = byDay[day] || []).push(e); }
-        else { unassigned.push(e); }
+    function buildExport(exercises, weekStart, phase) {
+      // Map each exercise to a portable export shape (all rehab fields included).
+      const toExport = (ex) => ({
+        name: (ex.name || '').trim(),
+        sets: parseInt(ex.sets, 10) || 0,
+        reps: String(ex.reps || ''),
+        weight: String(ex.weight || ''),
+        video: youtubeId(ex.video) ? String(ex.video).trim() : (ex.video ? String(ex.video).trim() : ''),
+        image: ex.imageUrl || '',
+        notes: String(ex.notes || ''),
+        cues: Array.isArray(ex.cues) ? ex.cues.filter(c => String(c).trim()).map(c => String(c).trim()) : [],
+        rpe: String(ex.rpe || ''),
+        tempo: String(ex.tempo || ''),
+        side: String(ex.side || ''),
+        frequency: String(ex.frequency || ''),
+        equipment: String(ex.equipment || ''),
+        target: String(ex.target || ''),
+        painRule: String(ex.painRule || ''),
+        regression: String(ex.regression || ''),
+        progression: String(ex.progression || ''),
+        why: String(ex.why || ''),
+        cautions: String(ex.cautions || ''),
       });
 
-      const days = [];
-      WEEKDAYS.forEach((wd, offset) => {
-        if (byDay[wd] && byDay[wd].length) {
-          const date = addDays(weekStart, offset);
-          days.push({
-            date,
-            type: 'strength',
-            title: dayTitles[wd] || `Strength — ${wd}`,
-            exercises: byDay[wd],
-          });
-        }
-      });
-      if (unassigned.length) {
-        days.push({
-          date: weekStart,
-          type: 'strength',
-          title: dayTitles[UNASSIGNED] || 'This Week',
-          exercises: unassigned,
+      // Bucket exercises onto dates per their frequency, then group by date.
+      const byDate = {};   // iso date -> exercises[]
+      const dateWeekday = {}; // iso date -> weekday name ('' for Unassigned-origin)
+      exercises.forEach((ex) => {
+        const e = toExport(ex);
+        if (!e.name) return; // skip blank cards
+        const day = normalizeDay(ex.day);
+        const assignedDate = day ? addDays(weekStart, WEEKDAYS.indexOf(day)) : weekStart;
+        const dates = frequencyDates(ex.frequency, weekStart, assignedDate);
+        dates.forEach((date) => {
+          (byDate[date] = byDate[date] || []).push(e);
+          // Remember the weekday that owns this date for title defaults.
+          if (!(date in dateWeekday)) {
+            const offset = Math.round((fmtDate(date) - fmtDate(weekStart)) / 86400000);
+            dateWeekday[date] = (offset >= 0 && offset <= 6 && day) ? WEEKDAYS[offset] : (day ? day : '');
+          }
         });
-      }
+      });
+
+      const days = Object.keys(byDate).map((date) => {
+        const offset = Math.round((fmtDate(date) - fmtDate(weekStart)) / 86400000);
+        const wd = (offset >= 0 && offset <= 6) ? WEEKDAYS[offset] : '';
+        const isUnassignedOrigin = !dateWeekday[date];
+        const title = isUnassignedOrigin
+          ? (dayTitles[UNASSIGNED] || 'This Week')
+          : (dayTitles[wd] || (wd ? `Strength — ${wd}` : 'This Week'));
+        return { date, type: 'strength', title, exercises: byDate[date] };
+      });
       days.sort((a, b) => a.date.localeCompare(b.date));
       return {
         days,
-        meta: { generatedBy: 'coach-mode', generatedAt: new Date().toISOString(), weekStart },
+        meta: { generatedBy: 'coach-mode', generatedAt: new Date().toISOString(), weekStart, phase: String(phase || '') },
       };
     }
     // Holds per-day editable titles, keyed by weekday name (and UNASSIGNED). Module-scope
@@ -670,11 +944,138 @@
     let dayTitles = {};
 
     // ====================================================================
+    // History review MODAL — read-only browse of the imported athlete history.
+    // Same overlay style as the image/clip pickers. Lists every past movement
+    // (most-recent first) with cues, a thumbnail and a video link.
+    // ====================================================================
+    function HistoryReview({ historyByName, meta, onClose }) {
+      const records = useMemo(() => {
+        return Object.values(historyByName || {}).sort((a, b) => {
+          const ad = a.lastDate || '', bd = b.lastDate || '';
+          if (ad !== bd) return bd.localeCompare(ad); // most-recent first
+          return String(a.name || '').localeCompare(String(b.name || ''));
+        });
+      }, [historyByName]);
+      const [broken, setBroken] = useState({});
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-2 bg-[#0a0a0a]/60 backdrop-blur-sm" onClick={onClose}>
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-[#f5f3ee] border-2 border-[#0a0a0a] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 z-10 flex items-stretch bg-[#0a0a0a] text-[#f5f3ee] border-b-2 border-[#0a0a0a]">
+              <h3 className="flex-1 px-4 py-3 text-sm uppercase font-bold" style={{ fontFamily: '"Anton", sans-serif', letterSpacing: '0.15em' }}>History review</h3>
+              <button onClick={onClose} className="px-4 hover:bg-[#c8202b] active:scale-95 transition border-l-2 border-[#f5f3ee]/20"><Icon name="X" size={18} /></button>
+            </div>
+            <div className="p-3 space-y-2">
+              {meta && (
+                <p className="label-mono text-[#0a0a0a]/50">
+                  {meta.movements} movement{meta.movements === 1 ? '' : 's'}
+                  {meta.sessions ? ` · ${meta.sessions} session${meta.sessions === 1 ? '' : 's'}` : ''}
+                  {meta.range ? ` · ${meta.range}` : ''}
+                </p>
+              )}
+
+              {/* Adherence + recent feedback (#3) */}
+              {meta && (meta.adherence != null || (meta.recentFeedback && meta.recentFeedback.length)) && (
+                <div className="border-2 border-[#1c2942] bg-[#e8e4d9] px-3 py-2.5 space-y-2">
+                  {meta.adherence != null && (
+                    <div className="flex items-baseline gap-2">
+                      <span className="label-mono text-[#0a0a0a]/50">— Adherence —</span>
+                      <span className="text-xl font-bold leading-none" style={{ fontFamily: '"Anton", sans-serif' }}>{meta.adherence}%</span>
+                      <span className="text-[11px] text-[#0a0a0a]/50">
+                        {meta.sessionsWithStatus > 0
+                          ? `${meta.sessionsCompleted}/${meta.sessionsWithStatus} sessions`
+                          : `${meta.exercisesDone}/${meta.exercisesPrescribed} exercises`}
+                      </span>
+                    </div>
+                  )}
+                  {meta.recentFeedback && meta.recentFeedback.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="label-mono text-[#0a0a0a]/50">— Recent feedback —</p>
+                      <ul className="space-y-1">
+                        {meta.recentFeedback.map((f, i) => (
+                          <li key={i} className="text-xs leading-snug text-[#0a0a0a]/80">
+                            {f.date && <span className="font-mono text-[#0a0a0a]/45">{f.date} · </span>}
+                            {f.feedback}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {meta.oftenSkipped && meta.oftenSkipped.length > 0 && (
+                    <p className="text-[11px] text-[#c8202b] leading-snug">Often skipped: {meta.oftenSkipped.slice(0, 5).join(', ')}</p>
+                  )}
+                </div>
+              )}
+              {records.length === 0 && (
+                <p className="text-sm text-[#0a0a0a]/50 py-4 text-center">No movements in the imported history.</p>
+              )}
+              {records.map((rec, i) => {
+                const showImg = rec.image && !broken[rec.image];
+                return (
+                  <div key={(rec.name || '') + i} className="border-2 border-[#0a0a0a] bg-[#f5f3ee]">
+                    <div className="px-3 py-2 bg-[#4a3528] text-[#f5f3ee] border-b-2 border-[#0a0a0a] flex items-baseline gap-2">
+                      <span className="flex-1 font-semibold leading-tight">{rec.name}</span>
+                      <span className="label-mono opacity-70 whitespace-nowrap text-right">
+                        trained {rec.timesSeen}×{rec.lastDate ? ` · last ${rec.lastDate}` : ''}
+                        {(rec.doneCount != null) ? <><br/>done {rec.doneCount}/{rec.timesSeen}{rec.lastDoneDate ? ` · last ${rec.lastDoneDate}` : ''}</> : null}
+                      </span>
+                    </div>
+                    <div className="p-3 space-y-2">
+                      {showImg && (
+                        <div className="border-2 border-[#0a0a0a] bg-[#e8e4d9] overflow-hidden inline-block max-w-[140px]">
+                          <img src={rec.image} alt={`${rec.name} reference`} className="block max-h-28 w-auto object-contain" onError={() => setBroken((b) => ({ ...b, [rec.image]: true }))} />
+                        </div>
+                      )}
+                      {Array.isArray(rec.cues) && rec.cues.length > 0 ? (
+                        <ul className="list-disc pl-4 space-y-0.5">
+                          {rec.cues.map((c, j) => (
+                            <li key={j} className="text-sm leading-snug text-[#0a0a0a]/80">{c}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-xs text-[#0a0a0a]/40">No cues recorded.</p>
+                      )}
+                      {rec.lastFeedback && (
+                        <p className="text-xs leading-snug text-[#0a0a0a]/70 border-l-2 border-[#1c2942]/40 pl-2">“{rec.lastFeedback}”</p>
+                      )}
+                      {rec.video && (
+                        <a href={rec.video} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 label-mono text-[#c8202b] active:scale-95 transition">
+                          video ↗
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ====================================================================
     // MAIN APP
     // ====================================================================
     function App() {
       const [screen, setScreen] = useState('input'); // input | review | export
       const [text, setText] = useState('');
+      // Athlete context / anchor — injuries, level, goals, equipment. Tailors the
+      // generated coaching cues. Persisted so the coach doesn't retype it weekly.
+      const [context, setContext] = useState(() => { try { return localStorage.getItem('coach_athlete_context') || ''; } catch (_) { return ''; } });
+      // Rehab phase (#5) — prepended to the parse context + carried into export meta.
+      const [phase, setPhase] = useState(() => { try { return localStorage.getItem('coach_rehab_phase') || ''; } catch (_) { return ''; } });
+      // Imported athlete history: per-movement curated cues/image/video, persisted.
+      const [historyByName, setHistoryByName] = useState(() => {
+        try { const raw = localStorage.getItem(HISTORY_KEY); if (raw) { const p = JSON.parse(raw); return (p && p.byName) || {}; } } catch (_) {}
+        return {};
+      });
+      const [historyMeta, setHistoryMeta] = useState(() => {
+        try { const raw = localStorage.getItem(HISTORY_KEY); if (raw) { const p = JSON.parse(raw); return (p && p.meta) || null; } } catch (_) {}
+        return null;
+      });
+      const [historyError, setHistoryError] = useState('');
+      const [historyReviewOpen, setHistoryReviewOpen] = useState(false);
+      const fileInputRef = useRef(null);
       const [weekStart, setWeekStart] = useState(nextMonday(isoToday()));
       const [loading, setLoading] = useState(false);
       const [error, setError] = useState('');
@@ -688,6 +1089,41 @@
 
       // keep module-level dayTitles in sync for buildExport
       useEffect(() => { dayTitles = titles; }, [titles]);
+      useEffect(() => { try { localStorage.setItem('coach_athlete_context', context); } catch (_) {} }, [context]);
+      useEffect(() => { try { localStorage.setItem('coach_rehab_phase', phase); } catch (_) {} }, [phase]);
+
+      // Import the athlete's "Full JSON backup": parse, extract per-movement
+      // history, store in state + localStorage so it survives reloads.
+      const onHistoryFile = async (e) => {
+        setHistoryError('');
+        const file = e.target.files && e.target.files[0];
+        if (file) {
+          try {
+            const txt = await file.text();
+            const plan = JSON.parse(txt);
+            const { byName, meta } = extractHistory(plan);
+            if (!meta.movements) {
+              setHistoryError('No exercises found in that file. Make sure it is the athlete’s Full JSON backup.');
+            } else {
+              setHistoryByName(byName);
+              setHistoryMeta(meta);
+              try { localStorage.setItem(HISTORY_KEY, JSON.stringify({ byName, meta })); } catch (_) {}
+            }
+          } catch (_) {
+            setHistoryError('That file isn’t valid JSON. Export the athlete’s Full JSON backup and try again.');
+          }
+        }
+        // reset so picking the same file again re-fires change
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      };
+      const clearHistory = () => {
+        if (!window.confirm('Clear the imported athlete history? Past cues, images and videos will no longer be reused.')) return;
+        setHistoryByName({});
+        setHistoryMeta(null);
+        setHistoryReviewOpen(false);
+        setHistoryError('');
+        try { localStorage.removeItem(HISTORY_KEY); } catch (_) {}
+      };
 
       // --- Optional shared-passphrase gate (server-enforced) ---
       const [gateRequired, setGateRequired] = useState(false);
@@ -727,15 +1163,83 @@
         'push day - incline db press 4x10, lateral raise 3x15, tricep pushdown 3x12',
       ];
 
+      // ---- Protocol templates (#4) — short, editable physio starting points ----
+      const templates = [
+        {
+          label: 'Achilles tendinopathy (HSR)',
+          phase: 'Load tolerance',
+          context: 'Mid-portion Achilles tendinopathy, pain settling; goal: rebuild tendon load tolerance.',
+          text: 'Mon: Heavy slow calf raise 4x6 tempo 3-0-3, Seated calf raise 4x8 tempo 3-0-3, Single-leg balance 3x30s\nThu: Heavy slow calf raise 4x6 tempo 3-0-3, Eccentric heel drop 3x12, Hop progression 3x10',
+        },
+        {
+          label: 'Patellofemoral pain',
+          phase: 'Load tolerance',
+          context: 'Anterior knee pain with stairs/squats; goal: quad/hip strength, settle PFP.',
+          text: 'Mon: Spanish squat 4x10 tempo 3-0-1, Leg press 3x12, Side-lying hip abduction 3x15 each\nThu: Step-down 3x10 each leg, Wall sit 3x40s, Glute bridge 3x15',
+        },
+        {
+          label: 'Rotator cuff / shoulder',
+          phase: 'Acute / protect',
+          context: 'Rotator cuff related shoulder pain; goal: restore cuff control, pain-free range.',
+          text: 'Daily: Isometric external rotation 5x30s, Scapular setting 3x10\nMon: Banded external rotation 3x15, Banded internal rotation 3x15, Scaption raise 3x12',
+        },
+        {
+          label: 'ACL — early strength',
+          phase: 'Load tolerance',
+          context: 'Post ACL reconstruction, early strength phase; goal: quad activation, single-leg control.',
+          text: 'Mon: Leg press 4x10, Hamstring curl 3x12, Single-leg balance 3x30s, Heel raise 3x15\nThu: Spanish squat 3x12, Step-up 3x10 each leg, Terminal knee extension 3x15',
+        },
+        {
+          label: 'Low back',
+          phase: 'Load tolerance',
+          context: 'Non-specific low back pain, settling; goal: build trunk and hip tolerance.',
+          text: 'Mon: Hip hinge / RDL 3x10 tempo 3-0-1, Bird dog 3x8 each, Dead bug 3x10, Side plank 3x30s each\nThu: Goblet squat 3x10, Glute bridge 3x15, McGill curl-up 3x8',
+        },
+      ];
+      const applyTemplate = (tpl) => {
+        setText(tpl.text);
+        if (tpl.phase) setPhase(tpl.phase);
+        if (tpl.context) setContext((c) => (c && c.trim()) ? c : tpl.context);
+      };
+
       const process = async () => {
         const t = text.trim();
         if (!t) { setError('Type what the athlete should do first.'); return; }
         setLoading(true); setError('');
         try {
+          // Build a history-context string from up to ~40 past movements that have
+          // established cues, so the model reuses consistent cueing.
+          const historyCueLines = Object.values(historyByName)
+            .filter((h) => h && Array.isArray(h.cues) && h.cues.length)
+            .slice(0, 40)
+            .map((h) => `- ${h.name}: ${h.cues.join('; ')}`);
+          const historyContextString = historyCueLines.length
+            ? `The athlete has trained these movements before, with these established coaching cues. Reuse consistent cueing for the same movement where appropriate:\n${historyCueLines.join('\n')}`
+            : '';
+
+          // Rehab phase line (#5).
+          const phaseLine = phase ? `Rehab phase: ${phase}` : '';
+
+          // Athlete-response summary (#3): adherence, last few feedback notes,
+          // and movements often skipped — so new cues/pain-rules/progressions can
+          // reference how the athlete has actually been responding.
+          let athleteResponseString = '';
+          if (historyMeta) {
+            const parts = [];
+            if (historyMeta.adherence != null) parts.push(`Adherence: ${historyMeta.adherence}%`);
+            const fb = (historyMeta.recentFeedback || []).slice(0, 3)
+              .map((f) => f && f.feedback ? (f.date ? `${f.date}: ${f.feedback}` : f.feedback) : '')
+              .filter(Boolean);
+            if (fb.length) parts.push(`Recent feedback — ${fb.join(' | ')}`);
+            if (historyMeta.oftenSkipped && historyMeta.oftenSkipped.length) parts.push(`Often skipped: ${historyMeta.oftenSkipped.slice(0, 5).join(', ')}`);
+            if (parts.length) athleteResponseString = `How the athlete has been responding (use this to tune cues, pain rules and progressions):\n${parts.join('\n')}`;
+          }
+
+          const combinedContext = [phaseLine, context.trim(), historyContextString, athleteResponseString].filter(Boolean).join('\n\n');
           const res = await fetch('/api/parse', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-coach-pass': pass },
-            body: JSON.stringify({ text: t }),
+            body: JSON.stringify({ text: t, context: combinedContext }),
           });
           let data = {};
           try { data = await res.json(); } catch (_) { data = {}; }
@@ -765,11 +1269,45 @@
             notes: String(ex.notes || ''),
             cues: Array.isArray(ex.cues) ? ex.cues.map(String) : [],
             raw: String(ex.raw || ''),
+            // Rehab / physio fields (#1) — carried from the fast parse.
+            rpe: String(ex.rpe || ''),
+            tempo: String(ex.tempo || ''),
+            side: String(ex.side || ''),
+            frequency: String(ex.frequency || ''),
+            equipment: String(ex.equipment || ''),
+            target: String(ex.target || ''),
+            painRule: String(ex.painRule || ''),
+            regression: String(ex.regression || ''),
+            progression: String(ex.progression || ''),
+            why: String(ex.why || ''),
+            cautions: String(ex.cautions || ''),
             video: '',
             videoAuto: true, // allow auto video search/pick
             imageUrl: '',
             imageAuto: true, // allow auto image matching
           }));
+
+          // Reuse the athlete's curated history for any movement we've seen before.
+          // Names with a reused history image skip per-exercise enrich (save quota).
+          const reusedImageKeys = new Set();
+          mapped.forEach((m) => {
+            const key = String(m.name || '').trim().toLowerCase();
+            const h = key && historyByName[key];
+            if (!h) return;
+            if ((!m.cues || !m.cues.length) && Array.isArray(h.cues) && h.cues.length) {
+              m.cues = h.cues.slice();
+            }
+            if (h.image) {
+              m.imageUrl = h.image;
+              m.imageAuto = false; // don't let enrich override the curated image
+              reusedImageKeys.add(key);
+            }
+            if (h.video) {
+              m.video = h.video;
+              m.videoAuto = false; // don't auto-search; reuse the curated clip
+            }
+          });
+
           setExercises(mapped);
           setEnrichByName({});
           setSummary(String(data.summary || ''));
@@ -781,7 +1319,15 @@
           // ranked — never blocking the review screen, and not waiting on the
           // whole batch. Each is best-effort; on failure that card just keeps
           // its client-library carousel.
-          const uniqueNames = [...new Set(mapped.map((m) => m.name).filter(Boolean))];
+          const uniqueNames = [...new Set(mapped.map((m) => m.name).filter(Boolean))]
+            .filter((n) => !reusedImageKeys.has(n.trim().toLowerCase()));
+          // Map name -> therapeutic target so the vision ranker prefers the
+          // relevant position (#8). First non-empty target for that name wins.
+          const targetByName = {};
+          mapped.forEach((m) => {
+            const k = String(m.name || '');
+            if (k && !targetByName[k] && m.target) targetByName[k] = m.target;
+          });
           setEnrichPending(new Set(uniqueNames.map((n) => n.toLowerCase())));
           (async () => {
             const POOL = 3;
@@ -794,7 +1340,7 @@
                   const er = await fetch('/api/enrich', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'x-coach-pass': pass },
-                    body: JSON.stringify({ exercises: [{ name }] }),
+                    body: JSON.stringify({ exercises: [{ name, target: targetByName[name] || '' }] }),
                   });
                   if (er.ok) {
                     const ed = await er.json().catch(() => ({}));
@@ -821,10 +1367,12 @@
       const updateEx = (id, patch) => setExercises((arr) => arr.map((e) => e.id === id ? { ...e, ...patch } : e));
       const deleteEx = (id) => setExercises((arr) => arr.filter((e) => e.id !== id));
       const addEx = () => setExercises((arr) => [...arr, {
-        id: newId(), name: '', sets: 3, reps: '', weight: '', day: '', notes: '', cues: [], raw: '', video: '', videoAuto: true, imageUrl: '', imageAuto: true,
+        id: newId(), name: '', sets: 3, reps: '', weight: '', day: '', notes: '', cues: [], raw: '',
+        rpe: '', tempo: '', side: '', frequency: '', equipment: '', target: '', painRule: '', regression: '', progression: '', why: '', cautions: '',
+        video: '', videoAuto: true, imageUrl: '', imageAuto: true,
       }]);
 
-      const exportObj = useMemo(() => buildExport(exercises, weekStart), [exercises, weekStart, titles]);
+      const exportObj = useMemo(() => buildExport(exercises, weekStart, phase), [exercises, weekStart, titles, phase]);
       const exportStr = useMemo(() => JSON.stringify(exportObj, null, 2), [exportObj]);
 
       const downloadJSON = () => {
@@ -896,9 +1444,77 @@
           <div className="min-h-full">
             <Header />
             <div className="max-w-2xl mx-auto px-4 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="label-mono text-[#0a0a0a]/50 mb-1.5">Week starting</p>
+                  <input type="date" value={weekStart} onChange={(e) => setWeekStart(e.target.value || weekStart)} className="ci" />
+                </div>
+                <div>
+                  <p className="label-mono text-[#0a0a0a]/50 mb-1.5">Rehab phase</p>
+                  <select value={phase} onChange={(e) => setPhase(e.target.value)} className="ci">
+                    <option value="">— none —</option>
+                    <option value="Acute / protect">Acute / protect</option>
+                    <option value="Load tolerance">Load tolerance</option>
+                    <option value="Return to sport">Return to sport</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Protocol templates (#4) */}
+              <div className="space-y-1.5">
+                <p className="label-mono text-[#0a0a0a]/40">Templates — tap to load a starting protocol, then edit</p>
+                <div className="flex flex-wrap gap-2">
+                  {templates.map((t, i) => (
+                    <button key={i} onClick={() => applyTemplate(t)} className="text-left border-2 border-[#1c2942] bg-[#e8e4d9] px-2.5 py-1.5 text-[11px] font-semibold leading-snug active:scale-[0.98] transition">
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div>
-                <p className="label-mono text-[#0a0a0a]/50 mb-1.5">Week starting</p>
-                <input type="date" value={weekStart} onChange={(e) => setWeekStart(e.target.value || weekStart)} className="ci" />
+                <p className="label-mono text-[#0a0a0a]/50 mb-1.5">Athlete context <span className="text-[#0a0a0a]/35">(optional — tailors the coaching cues)</span></p>
+                <textarea
+                  value={context}
+                  onChange={(e) => setContext(e.target.value)}
+                  rows={3}
+                  placeholder={"e.g. 38yo, returning from R Achilles tendinopathy (pain-free); intermediate lifter; goal: rebuild calf capacity; full gym. (You can also paste the athlete's exported history here.)"}
+                  className="ci resize-y leading-relaxed"
+                />
+              </div>
+
+              {/* Import athlete history */}
+              <div className="space-y-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={onHistoryFile}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => { setHistoryError(''); if (fileInputRef.current) fileInputRef.current.click(); }}
+                  className="w-full px-4 py-3 bg-[#f5f3ee] text-[#0a0a0a] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition label-mono border-2 border-dashed border-[#0a0a0a]"
+                >
+                  <Icon name="Upload" size={14} /> Import athlete history
+                </button>
+                <p className="text-[11px] text-[#0a0a0a]/45 leading-snug">Load the athlete’s “Full JSON backup”. Past cues, reference images and video links are reused when you prescribe the same movements.</p>
+
+                {historyError && (
+                  <div className="border-2 border-[#c8202b] bg-[#c8202b]/5 px-3 py-2">
+                    <p className="text-sm text-[#0a0a0a]/80 leading-snug">{historyError}</p>
+                  </div>
+                )}
+
+                {historyMeta && historyMeta.movements > 0 && (
+                  <div className="flex items-center gap-2 border-2 border-[#1c2942] bg-[#e8e4d9] px-3 py-2">
+                    <span className="flex-1 min-w-0 label-mono text-[#0a0a0a]/70 truncate">
+                      Athlete history — {historyMeta.movements} movement{historyMeta.movements === 1 ? '' : 's'}{historyMeta.range ? ` · ${historyMeta.range}` : ''}
+                    </span>
+                    <button onClick={() => setHistoryReviewOpen(true)} className="px-2 py-1 bg-[#0a0a0a] text-[#f5f3ee] active:scale-95 transition label-mono">Review</button>
+                    <button onClick={clearHistory} className="px-2 py-1 border-2 border-[#0a0a0a] bg-[#f5f3ee] active:scale-95 transition label-mono">Clear</button>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -938,6 +1554,10 @@
                 {loading ? <><Icon name="RefreshCw" size={16} className="animate-spin" /> Processing…</> : <><Icon name="Sparkles" size={16} /> Process</>}
               </button>
             </div>
+
+            {historyReviewOpen && (
+              <HistoryReview historyByName={historyByName} meta={historyMeta} onClose={() => setHistoryReviewOpen(false)} />
+            )}
           </div>
         );
       }

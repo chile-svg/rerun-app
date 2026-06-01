@@ -45,13 +45,24 @@ const PARSE_SCHEMA = {
           sets: { type: Type.INTEGER },
           reps: { type: Type.STRING },
           weight: { type: Type.STRING },
+          rpe: { type: Type.STRING },
+          tempo: { type: Type.STRING },
+          side: { type: Type.STRING },
+          frequency: { type: Type.STRING },
+          equipment: { type: Type.STRING },
+          target: { type: Type.STRING },
           day: { type: Type.STRING },
-          notes: { type: Type.STRING },
           cues: { type: Type.ARRAY, items: { type: Type.STRING } },
+          painRule: { type: Type.STRING },
+          regression: { type: Type.STRING },
+          progression: { type: Type.STRING },
+          why: { type: Type.STRING },
+          cautions: { type: Type.STRING },
+          notes: { type: Type.STRING },
           raw: { type: Type.STRING },
         },
-        required: ['name', 'sets', 'reps', 'weight', 'day', 'notes', 'cues', 'raw'],
-        propertyOrdering: ['name', 'sets', 'reps', 'weight', 'day', 'notes', 'cues', 'raw'],
+        required: ['name', 'sets', 'reps', 'weight', 'rpe', 'tempo', 'side', 'frequency', 'equipment', 'target', 'day', 'cues', 'painRule', 'regression', 'progression', 'why', 'cautions', 'notes', 'raw'],
+        propertyOrdering: ['name', 'sets', 'reps', 'weight', 'rpe', 'tempo', 'side', 'frequency', 'equipment', 'target', 'day', 'cues', 'painRule', 'regression', 'progression', 'why', 'cautions', 'notes', 'raw'],
       },
     },
     summary: { type: Type.STRING },
@@ -61,9 +72,9 @@ const PARSE_SCHEMA = {
 };
 
 // Stable system instruction. Provider-agnostic — describes the parsing task.
-const SYSTEM_PROMPT = `You are a parser for strength & conditioning workout prescriptions written by coaches in shorthand or natural language. Your job is to extract every distinct exercise the coach prescribed into structured data for a downstream training app that looks up exercise images and videos.
+const SYSTEM_PROMPT = `You are a physiotherapy / strength & conditioning assistant. A coach or physio gives you a free-text exercise prescription in shorthand or natural language; you turn each distinct exercise into a complete, rehab-grade structured prescription for a downstream training app.
 
-You will receive a coach's free-text prescription. Parse it into a JSON object matching the provided schema.
+You will receive the prescription. Parse it into a JSON object matching the provided schema. It may be preceded by an "Additional context:" block describing the ATHLETE (condition, injury / rehab status, experience level, goals, equipment, pain or contraindications) and/or a "Rehab phase:" (e.g. acute / protect, load tolerance, return to sport). Use that context to TAILOR every generated field — cues, pain rule, regression / progression aggressiveness, tempo, and the patient-facing rationale — to THIS athlete and phase. It does NOT change which exercises were prescribed: never add or drop exercises the coach didn't write.
 
 How to interpret common formats:
 - "Back squat 4x8 @80kg" => name "Back Squat", sets 4, reps "8", weight "80 kg".
@@ -71,27 +82,49 @@ How to interpret common formats:
 - "RDL 3x8" => name "Romanian Deadlift", sets 3, reps "8".
 - "plank 3x30s" => name "Plank", sets 3, reps "30s" (holds stay in reps as a string).
 - Rep ranges like "8-10" stay as the string "8-10". "AMRAP" stays as "AMRAP".
-- Tempo, RPE, cues, rest notes ("tempo 3-1-1", "@RPE8", "2min rest") go in notes.
+- Pull tempo into "tempo", RPE/RIR into "rpe", per-side info into "side"; only leftover freeform remarks go in "notes".
 - Supersets / circuits: emit one array item per distinct exercise.
 - Day groupings ("Monday: ... Wednesday: ...") set the day field to the day-of-week
   for each exercise under that heading; otherwise day is "".
 
-Field rules:
-- name: the common canonical exercise name. Expand abbreviations to aid downstream
-  image/video lookup, e.g. RDL => "Romanian Deadlift", OHP => "Overhead Press",
-  DB => dumbbell, BB => barbell, BW => bodyweight. Title-case the canonical name.
-- sets: integer. Use 1 if the coach did not specify a set count.
-- reps: STRING. Allows ranges ("8-10"), holds ("30s"), or "AMRAP". "" if none given.
-- weight: STRING (e.g. "80 kg", "135 lb", "bodyweight"). "" if no weight given.
+Field rules — fill EVERY field. Generate sensible, evidence-informed values from
+the canonical exercise even when the coach didn't write them, then tailor to the
+athlete context / phase. Never contradict the coach's explicit instructions or the
+athlete's stated limitations.
+- name: canonical exercise name. Expand abbreviations (RDL => "Romanian Deadlift",
+  OHP => "Overhead Press", DB => dumbbell, BB => barbell, BW => bodyweight). Title-case.
+- sets: integer (1 if unspecified).
+- reps: STRING — ranges ("8-10"), holds ("30s"), or "AMRAP"; "" if none.
+- weight: STRING ("80 kg", "bodyweight", "red band", "") — keep band colour / %1RM
+  text if that is how the load was given.
+- rpe: STRING target effort if implied or appropriate ("RPE 7", "RIR 2",
+  "pain-limited"); "" if not relevant.
+- tempo: STRING tempo notation when it matters ("3-1-1" = 3s lower, 1s hold, 1s up;
+  "3s eccentric") — especially for tendon work; "" otherwise.
+- side: STRING "left", "right", "bilateral", or "" — set left/right only when the
+  prescription or athlete context implicates one side (e.g. "R Achilles").
+- frequency: STRING dosing frequency when implied for rehab ("daily", "2x daily",
+  "every other day", "3x/week"); "" means the normal once on its assigned day.
+- equipment: STRING the main equipment ("barbell", "resistance band", "bodyweight",
+  "cable"...); "" if none.
+- target: STRING the THERAPEUTIC GOAL in a few words ("Achilles tendon load
+  capacity", "glute med motor control", "knee ROM").
 - day: STRING day-of-week if the coach grouped by day, else "".
-- notes: STRING of cues/tempo/RPE/rest, "" if none.
-- cues: an ARRAY of 3-5 short, imperative COACHING CUES for performing the
-  exercise well and safely — setup, the key execution points, and one common
-  fault to avoid. Physio / S&C quality, each a concise phrase (e.g.
-  "Brace your core before you descend", "Keep shins vertical", "Drive through
-  mid-foot", "Don't let the knees cave"). ALWAYS generate good cues from the
-  canonical exercise even if the coach wrote none; tailor them if the coach gave
-  specific instructions.
+- cues: ARRAY of 3-5 short imperative COACHING CUES (setup, key execution, one
+  common fault), e.g. "Brace before you descend", "Keep shins vertical". Always
+  generate good cues from the canonical exercise and tailor them to the athlete.
+- painRule: STRING a pain-monitoring rule for rehab, specific to the movement /
+  condition (e.g. "OK to work into discomfort up to 3/10; must settle within 24h.
+  Stop if sharp or worsening.").
+- regression: STRING an easier variation or reduced dose if it's too hard or flares
+  up (e.g. "Double-leg version, or reduce range").
+- progression: STRING the next step once tolerated (e.g. "Add load, or progress to
+  single-leg / add a 3s eccentric").
+- why: STRING ONE plain-language, patient-facing sentence on why this exercise
+  matters for them (motivates adherence; no jargon).
+- cautions: STRING contraindications / safety notes specific to the movement or
+  athlete ("Keep spine neutral — no rounding under load"); "" if none.
+- notes: STRING any leftover freeform remark; "" if none.
 - raw: the exact source fragment the coach wrote for that exercise.
 
 Never invent exercises that were not mentioned. If weight/sets/reps are not given,
@@ -319,7 +352,7 @@ async function fetchImageBase64(url) {
 }
 
 // Enrich one exercise: tool-call search -> vision rank -> ordered image URLs.
-async function enrichOne(ai, catalog, name) {
+async function enrichOne(ai, catalog, name, target) {
   // Phase 1 — let the model fire the search tool (deterministic fallback if it doesn't).
   let query = name;
   try {
@@ -359,7 +392,7 @@ async function enrichOne(ai, catalog, name) {
     if (withB64.length > 1) {
       const labelText = withB64.map((w) => `${w.index} = ${w.name}`).join('; ');
       const parts = [{
-        text: `These are candidate reference images for the exercise "${name}". Pick the clearest, most anatomically representative photo of THIS exercise for a coach's reference, and rank ALL candidates best-first. The images are provided in this index order: ${labelText}. Respond as JSON {"ranked":[indices]}.`,
+        text: `These are candidate reference images for the exercise "${name}". Pick the clearest, most anatomically representative photo of THIS exercise for a coach's reference, and rank ALL candidates best-first.${target ? ` Prefer the image that best shows the loaded / working position relevant to the therapeutic goal "${target}".` : ''} The images are provided in this index order: ${labelText}. Respond as JSON {"ranked":[indices]}.`,
       }];
       for (const w of withB64) parts.push({ inlineData: { mimeType: 'image/jpeg', data: w.b64 } });
       const vresp = await ai.models.generateContent({
@@ -403,9 +436,14 @@ app.post('/api/enrich', async (req, res) => {
   }
 
   const list = req.body && Array.isArray(req.body.exercises) ? req.body.exercises : [];
-  const names = [...new Set(
-    list.map((e) => (e && typeof e.name === 'string' ? e.name.trim() : '')).filter(Boolean)
-  )].slice(0, 40);
+  // De-dupe by name; carry an optional therapeutic goal/target to steer vision (#8).
+  const byName = new Map();
+  for (const e of list) {
+    const nm = e && typeof e.name === 'string' ? e.name.trim() : '';
+    if (!nm || byName.has(nm)) continue;
+    byName.set(nm, e && typeof e.target === 'string' ? e.target.trim() : '');
+  }
+  const names = [...byName.keys()].slice(0, 40);
   if (!names.length || !process.env.GEMINI_API_KEY) {
     return res.status(200).json({ results: [], degraded: !process.env.GEMINI_API_KEY });
   }
@@ -419,12 +457,14 @@ app.post('/api/enrich', async (req, res) => {
     async function worker() {
       while (i < names.length) {
         const name = names[i++];
-        const cached = enrichCache.get(name);
+        const target = byName.get(name) || '';
+        const cacheKey = `${name}|${target}`;
+        const cached = enrichCache.get(cacheKey);
         if (cached && Date.now() - cached.at < ENRICH_TTL_MS) { out.push(cached.value); continue; }
         let r;
-        try { r = await enrichOne(ai, catalog, name); }
+        try { r = await enrichOne(ai, catalog, name, target); }
         catch (_) { r = { name, images: [] }; }
-        enrichCache.set(name, { at: Date.now(), value: r });
+        enrichCache.set(cacheKey, { at: Date.now(), value: r });
         out.push(r);
       }
     }
