@@ -1269,6 +1269,18 @@
             notes: String(ex.notes || ''),
             cues: Array.isArray(ex.cues) ? ex.cues.map(String) : [],
             raw: String(ex.raw || ''),
+            // Rehab / physio fields (#1) — carried from the fast parse.
+            rpe: String(ex.rpe || ''),
+            tempo: String(ex.tempo || ''),
+            side: String(ex.side || ''),
+            frequency: String(ex.frequency || ''),
+            equipment: String(ex.equipment || ''),
+            target: String(ex.target || ''),
+            painRule: String(ex.painRule || ''),
+            regression: String(ex.regression || ''),
+            progression: String(ex.progression || ''),
+            why: String(ex.why || ''),
+            cautions: String(ex.cautions || ''),
             video: '',
             videoAuto: true, // allow auto video search/pick
             imageUrl: '',
@@ -1309,6 +1321,13 @@
           // its client-library carousel.
           const uniqueNames = [...new Set(mapped.map((m) => m.name).filter(Boolean))]
             .filter((n) => !reusedImageKeys.has(n.trim().toLowerCase()));
+          // Map name -> therapeutic target so the vision ranker prefers the
+          // relevant position (#8). First non-empty target for that name wins.
+          const targetByName = {};
+          mapped.forEach((m) => {
+            const k = String(m.name || '');
+            if (k && !targetByName[k] && m.target) targetByName[k] = m.target;
+          });
           setEnrichPending(new Set(uniqueNames.map((n) => n.toLowerCase())));
           (async () => {
             const POOL = 3;
@@ -1321,7 +1340,7 @@
                   const er = await fetch('/api/enrich', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'x-coach-pass': pass },
-                    body: JSON.stringify({ exercises: [{ name }] }),
+                    body: JSON.stringify({ exercises: [{ name, target: targetByName[name] || '' }] }),
                   });
                   if (er.ok) {
                     const ed = await er.json().catch(() => ({}));
@@ -1348,10 +1367,12 @@
       const updateEx = (id, patch) => setExercises((arr) => arr.map((e) => e.id === id ? { ...e, ...patch } : e));
       const deleteEx = (id) => setExercises((arr) => arr.filter((e) => e.id !== id));
       const addEx = () => setExercises((arr) => [...arr, {
-        id: newId(), name: '', sets: 3, reps: '', weight: '', day: '', notes: '', cues: [], raw: '', video: '', videoAuto: true, imageUrl: '', imageAuto: true,
+        id: newId(), name: '', sets: 3, reps: '', weight: '', day: '', notes: '', cues: [], raw: '',
+        rpe: '', tempo: '', side: '', frequency: '', equipment: '', target: '', painRule: '', regression: '', progression: '', why: '', cautions: '',
+        video: '', videoAuto: true, imageUrl: '', imageAuto: true,
       }]);
 
-      const exportObj = useMemo(() => buildExport(exercises, weekStart), [exercises, weekStart, titles]);
+      const exportObj = useMemo(() => buildExport(exercises, weekStart, phase), [exercises, weekStart, titles, phase]);
       const exportStr = useMemo(() => JSON.stringify(exportObj, null, 2), [exportObj]);
 
       const downloadJSON = () => {
@@ -1423,9 +1444,32 @@
           <div className="min-h-full">
             <Header />
             <div className="max-w-2xl mx-auto px-4 py-5 space-y-4">
-              <div>
-                <p className="label-mono text-[#0a0a0a]/50 mb-1.5">Week starting</p>
-                <input type="date" value={weekStart} onChange={(e) => setWeekStart(e.target.value || weekStart)} className="ci" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="label-mono text-[#0a0a0a]/50 mb-1.5">Week starting</p>
+                  <input type="date" value={weekStart} onChange={(e) => setWeekStart(e.target.value || weekStart)} className="ci" />
+                </div>
+                <div>
+                  <p className="label-mono text-[#0a0a0a]/50 mb-1.5">Rehab phase</p>
+                  <select value={phase} onChange={(e) => setPhase(e.target.value)} className="ci">
+                    <option value="">— none —</option>
+                    <option value="Acute / protect">Acute / protect</option>
+                    <option value="Load tolerance">Load tolerance</option>
+                    <option value="Return to sport">Return to sport</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Protocol templates (#4) */}
+              <div className="space-y-1.5">
+                <p className="label-mono text-[#0a0a0a]/40">Templates — tap to load a starting protocol, then edit</p>
+                <div className="flex flex-wrap gap-2">
+                  {templates.map((t, i) => (
+                    <button key={i} onClick={() => applyTemplate(t)} className="text-left border-2 border-[#1c2942] bg-[#e8e4d9] px-2.5 py-1.5 text-[11px] font-semibold leading-snug active:scale-[0.98] transition">
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div>
