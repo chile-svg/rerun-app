@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#f5f3ee" />
+  <title>RE/RΔN — COACH MODE</title>
+
+  <!-- Tailwind via CDN (Play CDN — fine for personal/dev use) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- React 18 -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- Babel standalone for in-browser JSX transform -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Exercise reference image library (provided by another agent) -->
+  <script src="/exercise-library.js"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+  <style>
+    html, body, #root {
+      height: 100%;
+      background: #f5f3ee;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+      margin: 0;
+    }
+    body {
+      font-family: '"Space Grotesk"', system-ui, sans-serif;
+      color: #0a0a0a;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+    button, .no-select { user-select: none; -webkit-user-select: none; }
+
+    #boot {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 18px; background: #f5f3ee; color: #0a0a0a;
+      font-family: system-ui, sans-serif;
+    }
+    #boot .label {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase;
+      color: rgba(10,10,10,0.5);
+    }
+    #boot .barwrap { width: 200px; height: 3px; background: rgba(10,10,10,0.1); position: relative; overflow: hidden; }
+    #boot .bar { position: absolute; top: 0; bottom: 0; width: 40%; background: #0a0a0a; animation: bootslide 1.2s ease-in-out infinite; }
+    @keyframes bootslide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+
+    .ci {
+      width: 100%;
+      background: #f5f3ee;
+      border: 1.5px solid #0a0a0a;
+      border-radius: 0;
+      padding: 0.6rem 0.75rem;
+      font-size: 0.875rem;
+      color: #0a0a0a;
+      font-family: "Space Grotesk", sans-serif;
+    }
+    .ci::placeholder { color: rgba(10,10,10,0.35); }
+    .ci:focus { outline: none; border-color: #c8202b; box-shadow: inset 0 0 0 1px #c8202b; }
+    select.ci { appearance: none; background-image: linear-gradient(45deg, transparent 50%, #0a0a0a 50%), linear-gradient(135deg, #0a0a0a 50%, transparent 50%); background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 2rem; }
+    .label-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 9px; letter-spacing: 0.25em; text-transform: uppercase; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div id="boot">
+      <div style="font-family:'Anton',sans-serif;font-size:42px;letter-spacing:0.04em;">COACH MODE</div>
+      <div class="label">— LOADING —</div>
+      <div class="barwrap"><div class="bar"></div></div>
+    </div>
+  </div>
+
+  <script>
+    window.__ICONS__ = {
+      Plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+      Trash2: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>',
+      Download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+      X: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+      Search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+      Sparkles: '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
+      ChevronLeft: '<path d="m15 18-6-6 6-6"/>',
+      ChevronRight: '<path d="m9 18 6-6-6-6"/>',
+      Copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+      Image: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+      Check: '<polyline points="20 6 9 17 4 12"/>',
+      RefreshCw: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/>',
+    };
+  </script>
+
+  <script type="text/babel" data-type="module">
+    const { useState, useMemo, useRef, useEffect, useCallback } = React;
+
+    // ----- Inline Icon component -----
+    function Icon({ name, size = 16, className = '', fill, strokeWidth = 2, style, ...rest }) {
+      const path = window.__ICONS__[name];
+      if (!path) return React.createElement('span', { style: { display: 'inline-block', width: size, height: size } });
+      return React.createElement('svg', {
+        xmlns: 'http://www.w3.org/2000/svg', width: size, height: size, viewBox: '0 0 24 24',
+        fill: fill || 'none', stroke: 'currentColor', strokeWidth, strokeLinecap: 'round',
+        strokeLinejoin: 'round', className, style: style || {}, ...rest,
+        dangerouslySetInnerHTML: { __html: path },
+      });
+    }
+
+    // ----- Date helpers -----
+    const pad = (n) => String(n).padStart(2, '0');
+    const toIso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const fmtDate = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+    const addDays = (s, n) => { const d = fmtDate(s); d.setDate(d.getDate() + n); return toIso(d); };
+    const isoToday = () => toIso(new Date());
+    // Default "week starting" = the upcoming Monday. Per spec, today 2026-06-01 (a Monday)
+    // should default to 2026-06-08, so when today is already Monday we jump a full week.
+    // JS getDay: 0=Sun..6=Sat; we treat Mon (1) as the week start.
+    function nextMonday(s) {
+      const d = fmtDate(s);
+      const dow = d.getDay(); // 0=Sun..6=Sat
+      const offset = (dow === 0) ? 1 : (8 - dow); // Sun->+1, Mon->+7, Tue->+6 ... Sat->+2
+      d.setDate(d.getDate() + offset);
+      return toIso(d);
+    }
+    const prettyDate = (s) => fmtDate(s).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+    // Mon=0 .. Sun=6 ordering for the week.
+    const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const WEEKDAY_SHORT = { Monday: 'Mon', Tuesday: 'Tue', Wednesday: 'Wed', Thursday: 'Thu', Friday: 'Fri', Saturday: 'Sat', Sunday: 'Sun' };
+    const UNASSIGNED = 'Unassigned';
+    // Normalize a parsed day string to a canonical weekday or '' .
+    function normalizeDay(raw) {
+      if (!raw) return '';
+      const t = String(raw).trim().toLowerCase();
+      const map = {
+        mon: 'Monday', monday: 'Monday',
+        tue: 'Tuesday', tues: 'Tuesday', tuesday: 'Tuesday',
+        wed: 'Wednesday', weds: 'Wednesday', wednesday: 'Wednesday',
+        thu: 'Thursday', thur: 'Thursday', thurs: 'Thursday', thursday: 'Thursday',
+        fri: 'Friday', friday: 'Friday',
+        sat: 'Saturday', saturday: 'Saturday',
+        sun: 'Sunday', sunday: 'Sunday',
+      };
+      return map[t] || (WEEKDAYS.includes(raw) ? raw : '');
+    }
+
+    // ----- YouTube helpers (mirrors index.html) -----
+    function youtubeId(input) {
+      if (!input) return null;
+      const s = String(input).trim();
+      if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+      const patterns = [
+        /[?&]v=([A-Za-z0-9_-]{11})/,
+        /youtu\.be\/([A-Za-z0-9_-]{11})/,
+        /youtube\.com\/embed\/([A-Za-z0-9_-]{11})/,
+        /youtube\.com\/shorts\/([A-Za-z0-9_-]{11})/,
+      ];
+      for (const p of patterns) { const m = s.match(p); if (m) return m[1]; }
+      return null;
+    }
+
+    // ----- Exercise library bridge (wait for ready, with timeout) -----
+    async function libReady() {
+      const lib = window.ExerciseLibrary;
+      if (!lib) return null;
+      try {
+        if (lib.ready && typeof lib.ready.then === 'function') {
+          await Promise.race([lib.ready, new Promise((res) => setTimeout(res, 4000))]);
+        }
+      } catch (_) { /* ignore */ }
+      return window.ExerciseLibrary;
+    }
+    async function matchExercise(name) {
+      if (!name || !name.trim()) return null;
+      const lib = await libReady();
+      if (!lib || typeof lib.match !== 'function') return null;
+      try { return lib.match(name) || null; } catch (_) { return null; }
+    }
+    async function searchExercise(query, limit = 8) {
+      const lib = await libReady();
+      if (!lib || typeof lib.search !== 'function') return [];
+      try { return lib.search(query, limit) || []; } catch (_) { return []; }
+    }
+
+    // ----- IDs -----
+    let _idc = 0;
+    const newId = () => `ex_${Date.now()}_${++_idc}`;
+
+    // ====================================================================
+    // Reference image block for one exercise (with "change image" picker)
+    // ====================================================================
+    function ReferenceImage({ name, imageUrl, onPick }) {
+      const [imgFailed, setImgFailed] = useState(false);
+      const [picking, setPicking] = useState(false);
+      const [results, setResults] = useState([]);
+      const [searching, setSearching] = useState(false);
+      const [q, setQ] = useState(name || '');
+
+      useEffect(() => { setImgFailed(false); }, [imageUrl]);
+
+      const runSearch = useCallback(async (query) => {
+        setSearching(true);
+        const r = await searchExercise(query || name, 8);
+        setResults(r);
+        setSearching(false);
+      }, [name]);
+
+      const openPicker = () => { setPicking(true); setQ(name || ''); runSearch(name || ''); };
+      const showImage = imageUrl && !imgFailed;
+
+      return (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <p className="label-mono text-[#0a0a0a]/50">— Reference —</p>
+            <button onClick={openPicker} className="label-mono text-[#c8202b] flex items-center gap-1 active:scale-95 transition">
+              <Icon name="Image" size={11} /> Change image
+            </button>
+          </div>
+          {showImage ? (
+            <div className="border-2 border-[#0a0a0a] bg-[#e8e4d9] overflow-hidden">
+              <img src={imageUrl} alt={`${name} reference`} className="w-full h-auto block max-h-64 object-contain mx-auto" onError={() => setImgFailed(true)} />
+            </div>
+          ) : (
+            <div className="border-2 border-dashed border-[#0a0a0a]/40 bg-[#e8e4d9]/50 px-3 py-6 text-center">
+              <p className="text-xs text-[#0a0a0a]/50">No reference image — use the video below.</p>
+            </div>
+          )}
+
+          {picking && (
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-2 bg-[#0a0a0a]/60 backdrop-blur-sm" onClick={() => setPicking(false)}>
+              <div className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-[#f5f3ee] border-2 border-[#0a0a0a] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                <div className="sticky top-0 z-10 flex items-stretch bg-[#0a0a0a] text-[#f5f3ee] border-b-2 border-[#0a0a0a]">
+                  <h3 className="flex-1 px-4 py-3 text-sm uppercase font-bold" style={{ fontFamily: '"Anton", sans-serif', letterSpacing: '0.15em' }}>Pick a reference image</h3>
+                  <button onClick={() => setPicking(false)} className="px-4 hover:bg-[#c8202b] active:scale-95 transition border-l-2 border-[#f5f3ee]/20"><Icon name="X" size={18} /></button>
+                </div>
+                <div className="p-4 space-y-3">
+                  <form onSubmit={(e) => { e.preventDefault(); runSearch(q); }} className="flex gap-2">
+                    <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search movements…" className="ci flex-1" />
+                    <button type="submit" className="px-3 bg-[#0a0a0a] text-[#f5f3ee] active:scale-95 transition"><Icon name="Search" size={16} /></button>
+                  </form>
+                  {searching && <p className="label-mono text-[#0a0a0a]/50">Searching…</p>}
+                  {!searching && results.length === 0 && <p className="text-xs text-[#0a0a0a]/50">No matches found.</p>}
+                  <div className="grid grid-cols-2 gap-2">
+                    {results.map((r, i) => (
+                      <button key={i} onClick={() => { onPick(r); setPicking(false); }} className="border-2 border-[#0a0a0a] bg-[#e8e4d9] text-left active:scale-[0.98] transition overflow-hidden">
+                        {r.imageUrl
+                          ? <img src={r.imageUrl} alt={r.name} className="w-full h-24 object-contain" />
+                          : <div className="w-full h-24 flex items-center justify-center text-[#0a0a0a]/30"><Icon name="Image" size={24} /></div>}
+                        <p className="px-2 py-1.5 text-[11px] font-semibold leading-tight border-t-2 border-[#0a0a0a]">{r.name}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ====================================================================
+    // YouTube reference block for one exercise
+    // ====================================================================
+    function VideoRef({ name, video, onChangeVideo }) {
+      const query = encodeURIComponent(`${name} exercise form tutorial`);
+      const ytSearch = `https://www.youtube.com/results?search_query=${query}`;
+      const vid = youtubeId(video);
+      const embedSrc = vid
+        ? `https://www.youtube-nocookie.com/embed/${vid}?rel=0`
+        : `https://www.youtube.com/embed?listType=search&list=${query}`;
+      return (
+        <div className="space-y-1.5">
+          <p className="label-mono text-[#0a0a0a]/50">— Video reference —</p>
+          <div className="border-2 border-[#0a0a0a] bg-[#0a0a0a] overflow-hidden aspect-video">
+            <iframe key={embedSrc} src={embedSrc} className="w-full h-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen title={`${name} video`} />
+          </div>
+          <input value={video || ''} onChange={(e) => onChangeVideo(e.target.value)} placeholder="Pin a YouTube link (optional)" className="ci" />
+          <a href={ytSearch} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full px-3 py-2 bg-[#c8202b] text-[#f5f3ee] active:scale-[0.98] transition label-mono border-2 border-[#c8202b]">
+            <Icon name="Search" size={12} /> Open on YouTube
+          </a>
+        </div>
+      );
+    }
+
+    // ====================================================================
+    // One editable exercise card
+    // ====================================================================
+    function ExerciseCard({ ex, index, onChange, onDelete }) {
+      // Debounced image re-match when the name changes.
+      useEffect(() => {
+        let cancelled = false;
+        const t = setTimeout(async () => {
+          const m = await matchExercise(ex.name);
+          if (cancelled) return;
+          // Only auto-update if the coach hasn't manually pinned an image for a different name.
+          if (m && (m.imageUrl !== ex.imageUrl || ex.imageAuto)) {
+            onChange({ imageUrl: m.imageUrl || '', imageAuto: true });
+          } else if (!m && ex.imageAuto) {
+            onChange({ imageUrl: '', imageAuto: true });
+          }
+        }, 450);
+        return () => { cancelled = true; clearTimeout(t); };
+        // eslint-disable-next-line
+      }, [ex.name]);
+
+      return (
+        <div className="border-2 border-[#0a0a0a] bg-[#f5f3ee]">
+          <div className="flex items-stretch bg-[#4a3528] text-[#f5f3ee] border-b-2 border-[#0a0a0a]">
+            <span className="px-3 py-2 label-mono opacity-70 self-center">#{pad(index + 1)}</span>
+            <span className="flex-1" />
+            <button onClick={onDelete} className="px-3 hover:bg-[#c8202b] active:scale-95 transition border-l-2 border-[#f5f3ee]/20" title="Delete exercise">
+              <Icon name="Trash2" size={16} />
+            </button>
+          </div>
+
+          <div className="p-3 space-y-3">
+            <div>
+              <p className="label-mono text-[#0a0a0a]/50 mb-1">Name</p>
+              <input value={ex.name} onChange={(e) => onChange({ name: e.target.value })} placeholder="Exercise name" className="ci font-semibold" />
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <p className="label-mono text-[#0a0a0a]/50 mb-1">Sets</p>
+                <input type="number" min="0" value={ex.sets} onChange={(e) => onChange({ sets: e.target.value === '' ? '' : parseInt(e.target.value, 10) || 0 })} className="ci" />
+              </div>
+              <div>
+                <p className="label-mono text-[#0a0a0a]/50 mb-1">Reps</p>
+                <input value={ex.reps} onChange={(e) => onChange({ reps: e.target.value })} placeholder="8 / 30s" className="ci" />
+              </div>
+              <div>
+                <p className="label-mono text-[#0a0a0a]/50 mb-1">Weight</p>
+                <input value={ex.weight} onChange={(e) => onChange({ weight: e.target.value })} placeholder="80 kg" className="ci" />
+              </div>
+            </div>
+
+            <div>
+              <p className="label-mono text-[#0a0a0a]/50 mb-1">Day</p>
+              <select value={ex.day || UNASSIGNED} onChange={(e) => onChange({ day: e.target.value === UNASSIGNED ? '' : e.target.value })} className="ci">
+                <option value={UNASSIGNED}>{UNASSIGNED}</option>
+                {WEEKDAYS.map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <p className="label-mono text-[#0a0a0a]/50 mb-1">Notes</p>
+              <input value={ex.notes} onChange={(e) => onChange({ notes: e.target.value })} placeholder="Coaching cue (optional)" className="ci" />
+            </div>
+
+            {ex.raw && (
+              <p className="text-[11px] text-[#0a0a0a]/40 font-mono leading-snug border-l-2 border-[#0a0a0a]/20 pl-2">
+                parsed from: “{ex.raw}”
+              </p>
+            )}
+
+            <ReferenceImage
+              name={ex.name}
+              imageUrl={ex.imageUrl}
+              onPick={(r) => onChange({ imageUrl: r.imageUrl || '', imageAuto: false })}
+            />
+
+            <VideoRef name={ex.name} video={ex.video} onChangeVideo={(v) => onChange({ video: v })} />
+          </div>
+        </div>
+      );
+    }
+
+    // ====================================================================
+    // Build the export object from reviewed exercises
+    // ====================================================================
+    function buildExport(exercises, weekStart) {
+      // Group by weekday; Unassigned all land on weekStart as one "This Week" day.
+      const byDay = {};
+      const unassigned = [];
+      exercises.forEach((ex) => {
+        const e = {
+          name: (ex.name || '').trim(),
+          sets: parseInt(ex.sets, 10) || 0,
+          reps: String(ex.reps || ''),
+          weight: String(ex.weight || ''),
+          video: youtubeId(ex.video) ? String(ex.video).trim() : (ex.video ? String(ex.video).trim() : ''),
+          image: ex.imageUrl || '',
+          notes: String(ex.notes || ''),
+        };
+        if (!e.name) return; // skip blank cards
+        const day = normalizeDay(ex.day);
+        if (day) { (byDay[day] = byDay[day] || []).push(e); }
+        else { unassigned.push(e); }
+      });
+
+      const days = [];
+      WEEKDAYS.forEach((wd, offset) => {
+        if (byDay[wd] && byDay[wd].length) {
+          const date = addDays(weekStart, offset);
+          days.push({
+            date,
+            type: 'strength',
+            title: dayTitles[wd] || `Strength — ${wd}`,
+            exercises: byDay[wd],
+          });
+        }
+      });
+      if (unassigned.length) {
+        days.push({
+          date: weekStart,
+          type: 'strength',
+          title: dayTitles[UNASSIGNED] || 'This Week',
+          exercises: unassigned,
+        });
+      }
+      days.sort((a, b) => a.date.localeCompare(b.date));
+      return {
+        days,
+        meta: { generatedBy: 'coach-mode', generatedAt: new Date().toISOString(), weekStart },
+      };
+    }
+    // Holds per-day editable titles, keyed by weekday name (and UNASSIGNED). Module-scope
+    // so buildExport can read them; the App keeps it in state and syncs here.
+    let dayTitles = {};
+
+    // ====================================================================
+    // MAIN APP
+    // ====================================================================
+    function App() {
+      const [screen, setScreen] = useState('input'); // input | review | export
+      const [text, setText] = useState('');
+      const [weekStart, setWeekStart] = useState(nextMonday(isoToday()));
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState('');
+      const [summary, setSummary] = useState('');
+      const [exercises, setExercises] = useState([]);
+      const [titles, setTitles] = useState({}); // weekday -> title
+      const [copied, setCopied] = useState(false);
+      const [exported, setExported] = useState(false);
+
+      // keep module-level dayTitles in sync for buildExport
+      useEffect(() => { dayTitles = titles; }, [titles]);
+
+      const examples = [
+        'Monday: Back squat 4x8 @80kg, RDL 3x8, Walking lunge 3x12 each leg / 30s plank x3',
+        'Tue upper: bench 5x5 @60kg, pull-ups 4xAMRAP, db row 3x10. Thu: deadlift 3x5, front squat 3x6',
+        'push day - incline db press 4x10, lateral raise 3x15, tricep pushdown 3x12',
+      ];
+
+      const process = async () => {
+        const t = text.trim();
+        if (!t) { setError('Type what the athlete should do first.'); return; }
+        setLoading(true); setError('');
+        try {
+          const res = await fetch('/api/parse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: t }),
+          });
+          let data = {};
+          try { data = await res.json(); } catch (_) { data = {}; }
+          if (!res.ok) {
+            if (res.status === 503) {
+              setError(data.error || 'The server is missing its API key. Ask whoever runs the server to set ANTHROPIC_API_KEY, then try again.');
+            } else {
+              setError(data.error || `Request failed (${res.status}). Your text is kept — try again.`);
+            }
+            setLoading(false);
+            return;
+          }
+          const incoming = Array.isArray(data.exercises) ? data.exercises : [];
+          const mapped = incoming.map((ex) => ({
+            id: newId(),
+            name: String(ex.name || ''),
+            sets: Number.isFinite(ex.sets) ? ex.sets : (parseInt(ex.sets, 10) || 0),
+            reps: String(ex.reps || ''),
+            weight: String(ex.weight || ''),
+            day: normalizeDay(ex.day),
+            notes: String(ex.notes || ''),
+            raw: String(ex.raw || ''),
+            video: '',
+            imageUrl: '',
+            imageAuto: true, // allow auto image matching
+          }));
+          // pre-fill images
+          for (const m of mapped) {
+            const match = await matchExercise(m.name);
+            if (match && match.imageUrl) m.imageUrl = match.imageUrl;
+          }
+          setExercises(mapped);
+          setSummary(String(data.summary || ''));
+          setTitles({});
+          setScreen('review');
+        } catch (e) {
+          setError('Could not reach the server. Your text is kept — check your connection and try again.');
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const updateEx = (id, patch) => setExercises((arr) => arr.map((e) => e.id === id ? { ...e, ...patch } : e));
+      const deleteEx = (id) => setExercises((arr) => arr.filter((e) => e.id !== id));
+      const addEx = () => setExercises((arr) => [...arr, {
+        id: newId(), name: '', sets: 3, reps: '', weight: '', day: '', notes: '', raw: '', video: '', imageUrl: '', imageAuto: true,
+      }]);
+
+      const exportObj = useMemo(() => buildExport(exercises, weekStart), [exercises, weekStart, titles]);
+      const exportStr = useMemo(() => JSON.stringify(exportObj, null, 2), [exportObj]);
+
+      const downloadJSON = () => {
+        const blob = new Blob([exportStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `coach-plan-${weekStart}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setExported(true);
+      };
+      const copyJSON = async () => {
+        try {
+          await navigator.clipboard.writeText(exportStr);
+          setCopied(true); setExported(true);
+          setTimeout(() => setCopied(false), 2000);
+        } catch (_) {
+          // fallback
+          const ta = document.createElement('textarea');
+          ta.value = exportStr; document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); setCopied(true); setExported(true); setTimeout(() => setCopied(false), 2000); } catch (e) {}
+          document.body.removeChild(ta);
+        }
+      };
+
+      // ---- HEADER ----
+      const Header = () => (
+        <div className="border-b-2 border-[#0a0a0a] bg-[#c8202b] text-[#f5f3ee]">
+          <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+            <Icon name="Sparkles" size={20} />
+            <div className="flex-1 min-w-0">
+              <h1 className="text-[26px] leading-none uppercase" style={{ fontFamily: '"Anton", sans-serif', letterSpacing: '0.04em' }}>Coach Mode</h1>
+              <p className="label-mono text-[#f5f3ee]/80 mt-1">No login — generate a plan and send the JSON to your athlete.</p>
+            </div>
+          </div>
+        </div>
+      );
+
+      // ---- INPUT SCREEN ----
+      if (screen === 'input') {
+        return (
+          <div className="min-h-full">
+            <Header />
+            <div className="max-w-2xl mx-auto px-4 py-5 space-y-4">
+              <div>
+                <p className="label-mono text-[#0a0a0a]/50 mb-1.5">Week starting</p>
+                <input type="date" value={weekStart} onChange={(e) => setWeekStart(e.target.value || weekStart)} className="ci" />
+              </div>
+
+              <div>
+                <p className="label-mono text-[#0a0a0a]/50 mb-1.5">What should the athlete do this week?</p>
+                <textarea
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  rows={8}
+                  placeholder={"e.g. Monday: Back squat 4x8 @80kg, RDL 3x8, Walking lunge 3x12 each leg / 30s plank x3"}
+                  className="ci resize-y leading-relaxed"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <p className="label-mono text-[#0a0a0a]/40">Tap to load an example</p>
+                <div className="flex flex-wrap gap-2">
+                  {examples.map((ex, i) => (
+                    <button key={i} onClick={() => setText(ex)} className="text-left border-2 border-[#0a0a0a] bg-[#e8e4d9] px-2.5 py-1.5 text-[11px] leading-snug active:scale-[0.98] transition max-w-full">
+                      {ex.length > 60 ? ex.slice(0, 57) + '…' : ex}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {error && (
+                <div className="border-2 border-[#c8202b] bg-[#c8202b]/5 px-3 py-2.5">
+                  <p className="label-mono text-[#c8202b] mb-1">— Error —</p>
+                  <p className="text-sm text-[#0a0a0a]/80 leading-relaxed">{error}</p>
+                </div>
+              )}
+
+              <button
+                onClick={process}
+                disabled={loading}
+                className="w-full px-4 py-4 bg-[#0a0a0a] text-[#f5f3ee] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition disabled:opacity-60 text-sm uppercase tracking-[0.25em] border-2 border-[#0a0a0a]"
+              >
+                {loading ? <><Icon name="RefreshCw" size={16} className="animate-spin" /> Processing…</> : <><Icon name="Sparkles" size={16} /> Process</>}
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      // ---- REVIEW SCREEN ----
+      if (screen === 'review') {
+        return (
+          <div className="min-h-full pb-24">
+            <Header />
+            <div className="max-w-2xl mx-auto px-4 py-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <button onClick={() => setScreen('input')} className="border-2 border-[#0a0a0a] px-2 py-2 active:scale-95 transition"><Icon name="ChevronLeft" size={16} /></button>
+                <h2 className="flex-1 text-[22px] leading-none uppercase" style={{ fontFamily: '"Anton", sans-serif', letterSpacing: '0.03em' }}>Review</h2>
+                <span className="label-mono text-[#0a0a0a]/50">{exercises.length} item{exercises.length === 1 ? '' : 's'}</span>
+              </div>
+
+              {summary && (
+                <div className="border-l-4 border-[#1c2942] bg-[#e8e4d9] px-3 py-2.5">
+                  <p className="label-mono text-[#0a0a0a]/60 mb-1">— Summary —</p>
+                  <p className="text-sm leading-relaxed text-[#0a0a0a]/80">{summary}</p>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {exercises.map((ex, i) => (
+                  <ExerciseCard key={ex.id} ex={ex} index={i} onChange={(p) => updateEx(ex.id, p)} onDelete={() => deleteEx(ex.id)} />
+                ))}
+              </div>
+
+              <button onClick={addEx} className="w-full px-4 py-3 bg-[#f5f3ee] text-[#0a0a0a] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition label-mono border-2 border-dashed border-[#0a0a0a]">
+                <Icon name="Plus" size={16} /> Add exercise
+              </button>
+            </div>
+
+            {/* sticky footer */}
+            <div className="fixed bottom-0 inset-x-0 border-t-2 border-[#0a0a0a] bg-[#f5f3ee]">
+              <div className="max-w-2xl mx-auto px-4 py-3 flex gap-2">
+                <button onClick={() => setScreen('input')} className="flex-1 px-4 py-3 bg-[#f5f3ee] text-[#0a0a0a] font-bold active:scale-[0.98] transition label-mono border-2 border-[#0a0a0a]">Back</button>
+                <button onClick={() => { setExported(false); setScreen('export'); }} className="flex-[2] px-4 py-3 bg-[#0a0a0a] text-[#f5f3ee] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition label-mono border-2 border-[#0a0a0a]">
+                  Confirm & Export <Icon name="ChevronRight" size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // ---- EXPORT SCREEN ----
+      return (
+        <div className="min-h-full pb-10">
+          <Header />
+          <div className="max-w-2xl mx-auto px-4 py-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <button onClick={() => setScreen('review')} className="border-2 border-[#0a0a0a] px-2 py-2 active:scale-95 transition"><Icon name="ChevronLeft" size={16} /></button>
+              <h2 className="flex-1 text-[22px] leading-none uppercase" style={{ fontFamily: '"Anton", sans-serif', letterSpacing: '0.03em' }}>Export</h2>
+            </div>
+
+            <div className="border-2 border-[#0a0a0a] bg-[#1c2942] text-[#f5f3ee] px-3 py-2.5">
+              <p className="label-mono text-[#f5f3ee]/70 mb-0.5">Week starting</p>
+              <p className="text-lg font-bold">{prettyDate(weekStart)} <span className="text-[#f5f3ee]/50 text-sm font-mono">({weekStart})</span></p>
+            </div>
+
+            {/* Per-day grouping preview with editable titles */}
+            <div className="space-y-3">
+              <p className="label-mono text-[#0a0a0a]/50">— Per-day preview —</p>
+              {exportObj.days.length === 0 && (
+                <div className="border-2 border-dashed border-[#0a0a0a]/40 px-3 py-4 text-center">
+                  <p className="text-sm text-[#0a0a0a]/50">No exercises with a name yet. Go back and add some.</p>
+                </div>
+              )}
+              {exportObj.days.map((d) => {
+                // figure out which weekday/key this day came from for title editing
+                const offset = Math.round((fmtDate(d.date) - fmtDate(weekStart)) / 86400000);
+                const wd = (d.date === weekStart && d.title === (titles[UNASSIGNED] || 'This Week')) ? UNASSIGNED : (WEEKDAYS[offset] || UNASSIGNED);
+                const titleKey = (offset >= 0 && offset <= 6 && WEEKDAYS[offset] && d.title !== 'This Week') ? WEEKDAYS[offset] : UNASSIGNED;
+                return (
+                  <div key={d.date + d.title} className="border-2 border-[#0a0a0a] bg-[#f5f3ee]">
+                    <div className="px-3 py-2 bg-[#4a3528] text-[#f5f3ee] border-b-2 border-[#0a0a0a] flex items-center justify-between">
+                      <span className="label-mono">{prettyDate(d.date)}</span>
+                      <span className="label-mono opacity-70">{d.exercises.length} ex</span>
+                    </div>
+                    <div className="p-3 space-y-2">
+                      <div>
+                        <p className="label-mono text-[#0a0a0a]/50 mb-1">Session title</p>
+                        <input
+                          value={d.title}
+                          onChange={(e) => setTitles((t) => ({ ...t, [titleKey]: e.target.value }))}
+                          className="ci"
+                        />
+                      </div>
+                      <ul className="space-y-1">
+                        {d.exercises.map((e, i) => (
+                          <li key={i} className="text-sm flex items-baseline gap-2">
+                            <span className="font-semibold">{e.name}</span>
+                            <span className="text-[#0a0a0a]/50 font-mono text-xs">
+                              {e.sets ? `${e.sets}×` : ''}{e.reps}{e.weight ? ` @ ${e.weight}` : ''}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Raw JSON peek */}
+            <details className="border-2 border-[#0a0a0a]">
+              <summary className="px-3 py-2 cursor-pointer label-mono bg-[#e8e4d9] select-none">View raw JSON</summary>
+              <pre className="p-3 text-[10px] leading-tight overflow-x-auto font-mono bg-[#0a0a0a] text-[#f5f3ee]">{exportStr}</pre>
+            </details>
+
+            <div className="flex gap-2">
+              <button onClick={downloadJSON} disabled={exportObj.days.length === 0} className="flex-1 px-4 py-3 bg-[#0a0a0a] text-[#f5f3ee] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition disabled:opacity-50 label-mono border-2 border-[#0a0a0a]">
+                <Icon name="Download" size={16} /> Download JSON
+              </button>
+              <button onClick={copyJSON} disabled={exportObj.days.length === 0} className="flex-1 px-4 py-3 bg-[#c8202b] text-[#f5f3ee] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition disabled:opacity-50 label-mono border-2 border-[#c8202b]">
+                {copied ? <><Icon name="Check" size={16} /> Copied</> : <><Icon name="Copy" size={16} /> Copy JSON</>}
+              </button>
+            </div>
+
+            {exported && (
+              <div className="border-2 border-[#0a0a0a] bg-[#e8e4d9] px-3 py-3">
+                <p className="label-mono text-[#0a0a0a]/60 mb-1 flex items-center gap-1"><Icon name="Check" size={12} /> — Done —</p>
+                <p className="text-sm leading-relaxed text-[#0a0a0a]/80">Send this file to your athlete. They open the app → Import → pick this JSON.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(App));
+  </script>
+</body>
+</html>

@@ -12,7 +12,10 @@ A self-contained running & rehab training app. Single-page, installable as a PWA
 | `manifest.json` | PWA manifest — makes it installable to the home screen |
 | `icon-192.png` / `icon-512.png` | App icons (standard) |
 | `icon-512-maskable.png` | App icon for Android adaptive masks |
-| `package.json` | Tells Railway how to serve the static files |
+| `server.js` | Small Node/Express server — serves the app and powers coach mode |
+| `coach.html` | **Coach mode** page (`/coach`) — build a week's plan and export it |
+| `exercise-library.js` | Reference-picture lookup (open-source [free-exercise-db](https://github.com/yuhonas/free-exercise-db)) |
+| `package.json` | Tells Railway to run `npm start` → `node server.js` |
 | `.gitignore` | Keeps `node_modules` etc. out of git |
 
 ---
@@ -38,11 +41,50 @@ git push -u origin main
 
 1. Railway dashboard → **New Project** → **Deploy from GitHub repo**
 2. Authorize Railway to access GitHub, select `rerun-app`
-3. Railway auto-detects Node, installs deps, runs `npm start`
-4. Service → **Settings** → **Networking** → **Generate Domain**
-5. You get a URL like `rerun-app-production.up.railway.app`
+3. Railway auto-detects Node, installs deps, runs `npm start` (which starts `node server.js`)
+4. Service → **Variables** → add **`ANTHROPIC_API_KEY`** = your Anthropic API key (needed for coach mode — see below)
+5. Service → **Settings** → **Networking** → **Generate Domain**
+6. You get a URL like `rerun-app-production.up.railway.app`
 
 Open it on your phone → browser menu → **Add to Home Screen**. It installs with the RE/RΔN icon and opens full-screen like a native app.
+
+> The app used to be served as pure static files. It now runs through a tiny Express server (`server.js`) so coach mode has a backend, but the athlete app is still the same single-page experience.
+
+---
+
+## Coach mode (`/coach`)
+
+There's a new coach-facing page at the `/coach` URL — for example `https://your-app.up.railway.app/coach`. It's a tool for whoever writes the training, not for the athlete day-to-day.
+
+The workflow:
+
+1. The coach types the week's exercises in plain language or shorthand — e.g. `back squat 3x8x80kg`, `nordic curl 3 x 6`, one per line.
+2. The page sends that to the server's `/api/parse` endpoint, which uses the **Anthropic Claude API** to turn it into structured exercises (sets, reps, weight, and a matched reference picture).
+3. Each parsed exercise is shown with a **reference picture** (from the open-source [free-exercise-db](https://github.com/yuhonas/free-exercise-db)) and a **YouTube video** so the coach can review and correct anything that came out wrong.
+4. The coach clicks **Export** to download a plan JSON file (`{ days: [...] }`), with `weight` and `image` carried on each exercise.
+5. The athlete opens the normal app, taps **Import**, and picks that JSON. The new weight shows next to the sets/reps, and the reference picture appears in the exercise's video popup.
+
+### `ANTHROPIC_API_KEY`
+
+Coach mode's parsing needs an Anthropic API key, set as the `ANTHROPIC_API_KEY` env var (Railway → service → **Variables**, or your shell locally).
+
+- **With it set:** coach mode parses plans as described above.
+- **Without it:** the athlete app still works completely fine — only the coach `/api/parse` endpoint returns a clear error telling you the key is missing.
+
+---
+
+## Local development
+
+```bash
+npm install
+export ANTHROPIC_API_KEY=sk-ant-...   # for coach mode parsing
+npm start                             # runs node server.js
+```
+
+Then open:
+
+- `http://localhost:3000` — the athlete app
+- `http://localhost:3000/coach` — coach mode
 
 ---
 

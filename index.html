@@ -2372,6 +2372,7 @@ function ExerciseRow({ ex, onVideo, index, isLast, personalNote = '', onNoteChan
             {(ex.sets || ex.reps) && (
               <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-[#0a0a0a]/60 mt-0.5">
                 {ex.sets ? `${ex.sets} × ${ex.reps}` : ex.reps}
+                {ex.weight && <span className="ml-2 text-[#0a0a0a]/50">· {ex.weight}</span>}
                 {ex.tempo && <span className="ml-2 text-[#0a0a0a]/40">· {ex.tempo}</span>}
               </p>
             )}
@@ -2959,9 +2960,11 @@ function youtubeId(input) {
 }
 
 function VideoModal({ exercise, onClose }) {
+  const [imgFailed, setImgFailed] = useState(false);
   const query = encodeURIComponent(`${exercise.name} exercise form tutorial`);
   const ytSearch = `https://www.youtube.com/results?search_query=${query}`;
   const vid = youtubeId(exercise.video);
+  const showImage = exercise.image && !imgFailed;
   // A pinned video ID embeds reliably; the search fallback is best-effort.
   const embedSrc = vid
     ? `https://www.youtube-nocookie.com/embed/${vid}?rel=0`
@@ -2972,12 +2975,27 @@ function VideoModal({ exercise, onClose }) {
       <div className="space-y-3">
         <div className="border-b-2 border-[#0a0a0a] pb-2">
           <h3 className="text-[24px] leading-[0.95] uppercase break-words" style={{ fontFamily: '"Anton", sans-serif', letterSpacing: '0.01em' }}>{exercise.name}</h3>
-          {(exercise.sets || exercise.reps) && (
+          {(exercise.sets || exercise.reps || exercise.weight) && (
             <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#0a0a0a]/60 mt-1.5">
-              {exercise.sets ? `${exercise.sets} × ${exercise.reps}` : exercise.reps}
+              {(exercise.sets || exercise.reps) && (exercise.sets ? `${exercise.sets} × ${exercise.reps}` : exercise.reps)}
+              {exercise.weight && <span className={(exercise.sets || exercise.reps) ? 'ml-2 text-[#0a0a0a]/50' : ''}>{(exercise.sets || exercise.reps) ? `· ${exercise.weight}` : exercise.weight}</span>}
             </p>
           )}
         </div>
+
+        {showImage && (
+          <div className="space-y-1">
+            <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#0a0a0a]/50 text-center">— REFERENCE —</p>
+            <div className="border-2 border-[#0a0a0a] bg-[#e8e4d9] overflow-hidden">
+              <img
+                src={exercise.image}
+                alt={`${exercise.name} reference`}
+                className="w-full h-auto block"
+                onError={() => setImgFailed(true)}
+              />
+            </div>
+          </div>
+        )}
 
         <div className="border-2 border-[#0a0a0a] bg-[#0a0a0a] overflow-hidden aspect-video">
           <iframe
