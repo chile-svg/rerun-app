@@ -1677,6 +1677,18 @@ function DailyView({ date, day, onToggle, onEdit, onVideo, onLog, onCoach, onZon
         </div>
       </div>
 
+      {/* Session red flags — prominent safety banner */}
+      {day.redFlags && typeof day.redFlags === 'string' && day.redFlags.trim() && (
+        <div className="border-2 border-[#c8202b] bg-[#c8202b]/10">
+          <div className="px-4 py-2 border-b-2 border-[#c8202b] flex items-center gap-2 bg-[#c8202b] text-[#f5f3ee]">
+            <span className="text-[10px] uppercase tracking-[0.25em] font-bold">⚠ — RED FLAGS —</span>
+          </div>
+          <p className="px-4 py-3 text-sm leading-relaxed text-[#0a0a0a]/90" style={{ fontFamily: '"Space Grotesk", sans-serif' }}>
+            {day.redFlags}
+          </p>
+        </div>
+      )}
+
       {/* Session notes (overall session-level coaching) */}
       {day.sessionNotes && (
         <div className="border-2 border-[#0a0a0a] bg-[#1c2942] text-[#f5f3ee]">
@@ -2346,7 +2358,7 @@ function ExerciseRow({ ex, onVideo, index, isLast, personalNote = '', onNoteChan
   const [open, setOpen] = useState(false);
   const [timer, setTimer] = useState(null); // { seconds, label } or null
   const [metronome, setMetronome] = useState(false); // boolean — is the rep-tempo metronome shown?
-  const hasDetail = ex.notes || (ex.cues && ex.cues.length > 0) || ex.regression || ex.progression || ex.equipment || ex.tempo || ex.target || ex.painRule;
+  const hasDetail = ex.notes || (ex.cues && ex.cues.length > 0) || ex.regression || ex.progression || ex.equipment || ex.tempo || ex.target || ex.painRule || ex.rpe || ex.side || ex.frequency || ex.why || ex.cautions;
   const hasNote = personalNote && personalNote.trim().length > 0;
   const timedSeconds = parseTimedReps(ex.reps);
   const tempoPhases = parseTempo(ex.tempo);
@@ -2388,6 +2400,10 @@ function ExerciseRow({ ex, onVideo, index, isLast, personalNote = '', onNoteChan
                 {ex.sets ? `${ex.sets} × ${ex.reps}` : ex.reps}
                 {ex.weight && <span className="ml-2 text-[#0a0a0a]/50">· {ex.weight}</span>}
                 {ex.tempo && <span className="ml-2 text-[#0a0a0a]/40">· {ex.tempo}</span>}
+                {ex.rpe && <span className="ml-2 text-[#0a0a0a]/50">· RPE {ex.rpe}</span>}
+                {ex.side && (ex.side.toLowerCase() === 'left' || ex.side.toLowerCase() === 'right') && (
+                  <span className="ml-2 text-[#7a8a8d] font-bold">· {ex.side.toLowerCase() === 'right' ? 'R' : 'L'}</span>
+                )}
               </p>
             )}
           </div>
@@ -2407,7 +2423,7 @@ function ExerciseRow({ ex, onVideo, index, isLast, personalNote = '', onNoteChan
       {open && (
         <div className="px-4 pb-4 -mt-1 space-y-3 bg-[#e8e4d9]/40 border-t border-[#0a0a0a]/10">
           {/* Equipment + target row */}
-          {(ex.equipment || ex.target) && (
+          {(ex.equipment || ex.target || (ex.side && ex.side.toLowerCase() !== 'bilateral') || ex.frequency) && (
             <div className="pt-3 flex flex-wrap gap-1.5">
               {ex.equipment && (
                 <span className="inline-flex items-center px-2 py-1 text-[9px] font-mono uppercase tracking-[0.15em] border border-[#0a0a0a]/40 bg-[#f5f3ee]">
@@ -2419,12 +2435,32 @@ function ExerciseRow({ ex, onVideo, index, isLast, personalNote = '', onNoteChan
                   TARGET · {ex.target}
                 </span>
               )}
+              {ex.side && ex.side.toLowerCase() !== 'bilateral' && (
+                <span className="inline-flex items-center px-2 py-1 text-[9px] font-mono uppercase tracking-[0.15em] border border-[#0a0a0a]/40 bg-[#f5f3ee]">
+                  SIDE · {ex.side.toUpperCase()}
+                </span>
+              )}
+              {ex.frequency && (
+                <span className="inline-flex items-center px-2 py-1 text-[9px] font-mono uppercase tracking-[0.15em] border border-[#0a0a0a]/40 bg-[#f5f3ee]">
+                  FREQ · {ex.frequency.toUpperCase()}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Why this — patient-facing rationale */}
+          {ex.why && (
+            <div className={!ex.equipment && !ex.target && !(ex.side && ex.side.toLowerCase() !== 'bilateral') && !ex.frequency ? 'pt-3' : ''}>
+              <div className="border-l-4 border-[#7a8a8d] bg-[#7a8a8d]/10 px-3 py-2">
+                <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#1c2942] mb-1">— WHY THIS —</p>
+                <p className="text-sm leading-relaxed text-[#0a0a0a]/85" style={{ fontFamily: '"Space Grotesk", sans-serif' }}>{ex.why}</p>
+              </div>
             </div>
           )}
 
           {/* Notes */}
           {ex.notes && (
-            <div className={!ex.equipment && !ex.target ? 'pt-3' : ''}>
+            <div className={!ex.equipment && !ex.target && !(ex.side && ex.side.toLowerCase() !== 'bilateral') && !ex.frequency && !ex.why ? 'pt-3' : ''}>
               <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#0a0a0a]/60 mb-1">— NOTES —</p>
               <p className="text-sm leading-relaxed text-[#0a0a0a]/85" style={{ fontFamily: '"Space Grotesk", sans-serif' }}>{ex.notes}</p>
             </div>
@@ -2468,6 +2504,14 @@ function ExerciseRow({ ex, onVideo, index, isLast, personalNote = '', onNoteChan
             <div className="border-l-4 border-[#c8202b] bg-[#c8202b]/5 px-3 py-2">
               <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#c8202b] mb-0.5">⚠ PAIN RULE</p>
               <p className="text-xs leading-relaxed text-[#0a0a0a]/85">{ex.painRule}</p>
+            </div>
+          )}
+
+          {/* Cautions — safety note, distinct from pain rule */}
+          {ex.cautions && (
+            <div className="border-l-4 border-[#4a3528] bg-[#4a3528]/8 px-3 py-2">
+              <p className="text-[9px] font-mono uppercase tracking-[0.25em] font-bold text-[#4a3528] mb-0.5">⚠ CAUTION</p>
+              <p className="text-xs leading-relaxed text-[#0a0a0a]/85">{ex.cautions}</p>
             </div>
           )}
 

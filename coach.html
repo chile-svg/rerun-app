@@ -198,6 +198,12 @@
       const days = (plan && Array.isArray(plan.days)) ? plan.days : [];
       let minDate = '', maxDate = '';
       let sessions = 0;
+      // Feedback-loop accounting (#3).
+      let sessionsCompleted = 0;          // sessions explicitly marked completed
+      let sessionsWithStatus = 0;         // sessions that carried a completed flag at all
+      let exercisesPrescribed = 0;        // total per-exercise instances seen
+      let exercisesDone = 0;              // per-exercise instances marked done
+      const feedbackEntries = [];         // { date, feedback }
       days.forEach((day) => {
         if (!day || typeof day !== 'object') return;
         sessions++;
@@ -206,6 +212,22 @@
           if (!minDate || date < minDate) minDate = date;
           if (!maxDate || date > maxDate) maxDate = date;
         }
+
+        // Session-level completion + feedback.
+        const hasCompleted = (typeof day.completed === 'boolean');
+        const completed = day.completed === true;
+        if (hasCompleted) { sessionsWithStatus++; if (completed) sessionsCompleted++; }
+        const feedback = typeof day.feedback === 'string' ? day.feedback.trim() : '';
+        if (feedback) feedbackEntries.push({ date, feedback });
+
+        // Per-exercise completion / notes maps (name -> bool / string).
+        const exerciseDone = (day.exerciseDone && typeof day.exerciseDone === 'object') ? day.exerciseDone : {};
+        const exerciseNotes = (day.exerciseNotes && typeof day.exerciseNotes === 'object') ? day.exerciseNotes : {};
+        const doneByKey = {};
+        const fbByKey = {};
+        Object.keys(exerciseDone).forEach((k) => { doneByKey[String(k).trim().toLowerCase()] = !!exerciseDone[k]; });
+        Object.keys(exerciseNotes).forEach((k) => { fbByKey[String(k).trim().toLowerCase()] = String(exerciseNotes[k] || '').trim(); });
+
         const exs = Array.isArray(day.exercises) ? day.exercises : [];
         exs.forEach((ex) => {
           if (!ex || typeof ex !== 'object') return;
@@ -220,12 +242,25 @@
           const weight = (ex.weight === 0 || ex.weight) ? String(ex.weight) : '';
           const notes = typeof ex.notes === 'string' ? ex.notes.trim() : '';
 
+          // Per-exercise completion: prefer the day's exerciseDone map, fall back
+          // to an inline ex.done flag, else inherit the session's completed flag.
+          let exDone;
+          if (key in doneByKey) exDone = doneByKey[key];
+          else if (typeof ex.done === 'boolean') exDone = ex.done;
+          else if (hasCompleted) exDone = completed;
+          else exDone = undefined;
+          const exFeedback = fbByKey[key] || '';
+
+          exercisesPrescribed++;
+          if (exDone === true) exercisesDone++;
+
           let rec = byName[key];
           if (!rec) {
-            rec = { name: rawName, cues: [], image: '', video: '', sets: '', reps: '', weight: '', notes: '', lastDate: '', timesSeen: 0 };
+            rec = { name: rawName, cues: [], image: '', video: '', sets: '', reps: '', weight: '', notes: '', lastDate: '', timesSeen: 0, doneCount: 0, lastDoneDate: '', lastFeedback: '' };
             byName[key] = rec;
           }
           rec.timesSeen++;
+          if (exDone === true) { rec.doneCount++; if (date && (!rec.lastDoneDate || date >= rec.lastDoneDate)) rec.lastDoneDate = date; }
 
           // Is this entry at least as recent as what we've recorded? (more recent wins)
           const isNewer = date && (!rec.lastDate || date >= rec.lastDate);
@@ -239,6 +274,7 @@
             if (reps) rec.reps = reps;
             if (weight) rec.weight = weight;
             if (notes) rec.notes = notes;
+            if (exFeedback) rec.lastFeedback = exFeedback;
           }
           // Backfill anything still empty from any (older) entry.
           if (!rec.cues.length && cues.length) rec.cues = cues;
@@ -248,11 +284,40 @@
           if (!rec.reps && reps) rec.reps = reps;
           if (!rec.weight && weight) rec.weight = weight;
           if (!rec.notes && notes) rec.notes = notes;
+          if (!rec.lastFeedback && exFeedback) rec.lastFeedback = exFeedback;
         });
       });
       const movements = Object.keys(byName).length;
       const range = (minDate && maxDate) ? `${minDate} → ${maxDate}` : (minDate || maxDate || '');
-      return { byName, meta: { movements, sessions, range } };
+
+      // Adherence: prefer session-level completion when present, else exercises done / prescribed.
+      let adherence = null;
+      if (sessionsWithStatus > 0) adherence = Math.round((sessionsCompleted / sessionsWithStatus) * 100);
+      else if (exercisesPrescribed > 0 && exercisesDone > 0) adherence = Math.round((exercisesDone / exercisesPrescribed) * 100);
+
+      // Most-recent non-empty session feedback (last ~5), newest first.
+      const recentFeedback = feedbackEntries
+        .filter((f) => f.feedback)
+        .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+        .slice(-5)
+        .reverse();
+
+      // Movements often skipped: seen ≥2× but done <50% of the time.
+      const oftenSkipped = Object.values(byName)
+        .filter((r) => r.timesSeen >= 2 && r.doneCount / r.timesSeen < 0.5)
+        .sort((a, b) => (a.doneCount / a.timesSeen) - (b.doneCount / b.timesSeen))
+        .map((r) => r.name);
+
+      return {
+        byName,
+        meta: {
+          movements, sessions, range,
+          adherence,
+          sessionsCompleted, sessionsWithStatus,
+          exercisesDone, exercisesPrescribed,
+          recentFeedback, oftenSkipped,
+        },
+      };
     }
 
     const HISTORY_KEY = 'coach_athlete_history_v1';
@@ -628,6 +693,10 @@
     // One editable exercise card
     // ====================================================================
     function ExerciseCard({ ex, index, enrichImages, pending, onChange, onDelete }) {
+      const [rehabOpen, setRehabOpen] = useState(false);
+      // Count how many rehab fields carry data, to hint the coach when collapsed.
+      const rehabFilled = [ex.tempo, ex.rpe, ex.side, ex.frequency, ex.equipment, ex.target, ex.painRule, ex.regression, ex.progression, ex.why, ex.cautions]
+        .filter((v) => String(v || '').trim()).length;
       return (
         <div className="border-2 border-[#0a0a0a] bg-[#f5f3ee]">
           <div className="flex items-stretch bg-[#4a3528] text-[#f5f3ee] border-b-2 border-[#0a0a0a]">
@@ -674,6 +743,88 @@
 
             <CuesEditor cues={ex.cues} onChange={onChange} />
 
+            {/* ---- Collapsible rehab / physio details (#1 #6 #7) ---- */}
+            <div className="border-2 border-[#1c2942]/30">
+              <button
+                type="button"
+                onClick={() => setRehabOpen((o) => !o)}
+                className="w-full flex items-center justify-between px-3 py-2 bg-[#e8e4d9] active:scale-[0.99] transition"
+              >
+                <span className="label-mono text-[#1c2942] flex items-center gap-1.5">
+                  <Icon name={rehabOpen ? 'ChevronLeft' : 'ChevronRight'} size={12} />
+                  Rehab details
+                  {rehabFilled > 0 && <span className="text-[#c8202b]">· {rehabFilled} set</span>}
+                </span>
+                <span className="label-mono text-[#0a0a0a]/40">{rehabOpen ? 'hide' : 'edit'}</span>
+              </button>
+
+              {rehabOpen && (
+                <div className="p-3 space-y-3 border-t-2 border-[#1c2942]/20">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="label-mono text-[#0a0a0a]/50 mb-1">Tempo</p>
+                      <input value={ex.tempo || ''} onChange={(e) => onChange({ tempo: e.target.value })} placeholder="3-0-3" className="ci" />
+                    </div>
+                    <div>
+                      <p className="label-mono text-[#0a0a0a]/50 mb-1">RPE</p>
+                      <input value={ex.rpe || ''} onChange={(e) => onChange({ rpe: e.target.value })} placeholder="7 / RPE 7-8" className="ci" />
+                    </div>
+                    <div>
+                      <p className="label-mono text-[#0a0a0a]/50 mb-1">Side</p>
+                      <select value={ex.side || ''} onChange={(e) => onChange({ side: e.target.value })} className="ci">
+                        <option value="">—</option>
+                        <option value="left">left</option>
+                        <option value="right">right</option>
+                        <option value="bilateral">bilateral</option>
+                      </select>
+                    </div>
+                    <div>
+                      <p className="label-mono text-[#0a0a0a]/50 mb-1">Frequency</p>
+                      <select value={ex.frequency || ''} onChange={(e) => onChange({ frequency: e.target.value })} className="ci">
+                        <option value="">once</option>
+                        <option value="daily">daily</option>
+                        <option value="2x daily">2x daily</option>
+                        <option value="every other day">every other day</option>
+                        <option value="3x per week">3x per week</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="label-mono text-[#0a0a0a]/50 mb-1">Equipment</p>
+                      <input value={ex.equipment || ''} onChange={(e) => onChange({ equipment: e.target.value })} placeholder="band, dumbbell…" className="ci" />
+                    </div>
+                    <div>
+                      <p className="label-mono text-[#0a0a0a]/50 mb-1">Target (goal)</p>
+                      <input value={ex.target || ''} onChange={(e) => onChange({ target: e.target.value })} placeholder="calf capacity" className="ci" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="label-mono text-[#0a0a0a]/50 mb-1">Pain rule</p>
+                    <textarea value={ex.painRule || ''} onChange={(e) => onChange({ painRule: e.target.value })} rows={2} placeholder="OK up to 3/10, settles by next morning." className="ci resize-y leading-relaxed" />
+                  </div>
+                  <div>
+                    <p className="label-mono text-[#0a0a0a]/50 mb-1">Regression (make easier)</p>
+                    <textarea value={ex.regression || ''} onChange={(e) => onChange({ regression: e.target.value })} rows={2} placeholder="Double-leg version / reduce range." className="ci resize-y leading-relaxed" />
+                  </div>
+                  <div>
+                    <p className="label-mono text-[#0a0a0a]/50 mb-1">Progression (make harder)</p>
+                    <textarea value={ex.progression || ''} onChange={(e) => onChange({ progression: e.target.value })} rows={2} placeholder="Add load / single-leg next week." className="ci resize-y leading-relaxed" />
+                  </div>
+                  <div>
+                    <p className="label-mono text-[#0a0a0a]/50 mb-1">Why (patient-facing)</p>
+                    <textarea value={ex.why || ''} onChange={(e) => onChange({ why: e.target.value })} rows={2} placeholder="Builds tendon load tolerance." className="ci resize-y leading-relaxed" />
+                  </div>
+                  <div>
+                    <p className="label-mono text-[#0a0a0a]/50 mb-1">Cautions</p>
+                    <textarea value={ex.cautions || ''} onChange={(e) => onChange({ cautions: e.target.value })} rows={2} placeholder="Stop if sharp pain or swelling." className="ci resize-y leading-relaxed" />
+                  </div>
+                </div>
+              )}
+            </div>
+
             {ex.raw && (
               <p className="text-[11px] text-[#0a0a0a]/40 font-mono leading-snug border-l-2 border-[#0a0a0a]/20 pl-2">
                 parsed from: “{ex.raw}”
@@ -696,53 +847,96 @@
     }
 
     // ====================================================================
+    // Frequency → dates (#2). Given a frequency string, the week start and the
+    // exercise's assigned date, return the list of ISO dates it should land on.
+    //   blank / once / weekly / 2x daily / unmatched → [assignedDate]
+    //   daily (not 2x / not every other)             → all 7 days
+    //   every other / alternate / eod                → offsets [0,2,4,6]
+    //   N per week (3x/week, 3 x week, 2x week)       → spread N over the week
+    // ====================================================================
+    function frequencyDates(frequency, weekStart, assignedDate) {
+      const base = assignedDate || weekStart;
+      const f = String(frequency || '').trim().toLowerCase();
+      if (!f) return [base];
+      const week = (offs) => offs.map((o) => addDays(weekStart, o));
+
+      // "2x daily" stays on its single assigned day (label travels with it).
+      if (/2\s*x?\s*daily|twice\s*(a|per)?\s*day/.test(f)) return [base];
+      // every other day / alternate / eod
+      if (/every\s*other|alternate|eod/.test(f)) return week([0, 2, 4, 6]);
+      // daily (but not the 2x/every-other cases handled above)
+      if (/daily|every\s*day/.test(f)) return week([0, 1, 2, 3, 4, 5, 6]);
+      // N per week, e.g. "3x/week", "3 x week", "2x week", "3 per week"
+      const m = f.match(/(\d+)\s*x?\s*(?:\/|per|a)?\s*week/);
+      if (m) {
+        const n = parseInt(m[1], 10) || 0;
+        if (n === 2) return week([0, 3]);
+        if (n === 3) return week([0, 2, 4]);
+        if (n >= 4) return week([0, 2, 4, 6]);
+        return [base]; // 1x/week or 0 → single assigned day
+      }
+      return [base];
+    }
+
+    // ====================================================================
     // Build the export object from reviewed exercises
     // ====================================================================
-    function buildExport(exercises, weekStart) {
-      // Group by weekday; Unassigned all land on weekStart as one "This Week" day.
-      const byDay = {};
-      const unassigned = [];
-      exercises.forEach((ex) => {
-        const e = {
-          name: (ex.name || '').trim(),
-          sets: parseInt(ex.sets, 10) || 0,
-          reps: String(ex.reps || ''),
-          weight: String(ex.weight || ''),
-          video: youtubeId(ex.video) ? String(ex.video).trim() : (ex.video ? String(ex.video).trim() : ''),
-          image: ex.imageUrl || '',
-          notes: String(ex.notes || ''),
-          cues: Array.isArray(ex.cues) ? ex.cues.filter(c => String(c).trim()).map(c => String(c).trim()) : [],
-        };
-        if (!e.name) return; // skip blank cards
-        const day = normalizeDay(ex.day);
-        if (day) { (byDay[day] = byDay[day] || []).push(e); }
-        else { unassigned.push(e); }
+    function buildExport(exercises, weekStart, phase) {
+      // Map each exercise to a portable export shape (all rehab fields included).
+      const toExport = (ex) => ({
+        name: (ex.name || '').trim(),
+        sets: parseInt(ex.sets, 10) || 0,
+        reps: String(ex.reps || ''),
+        weight: String(ex.weight || ''),
+        video: youtubeId(ex.video) ? String(ex.video).trim() : (ex.video ? String(ex.video).trim() : ''),
+        image: ex.imageUrl || '',
+        notes: String(ex.notes || ''),
+        cues: Array.isArray(ex.cues) ? ex.cues.filter(c => String(c).trim()).map(c => String(c).trim()) : [],
+        rpe: String(ex.rpe || ''),
+        tempo: String(ex.tempo || ''),
+        side: String(ex.side || ''),
+        frequency: String(ex.frequency || ''),
+        equipment: String(ex.equipment || ''),
+        target: String(ex.target || ''),
+        painRule: String(ex.painRule || ''),
+        regression: String(ex.regression || ''),
+        progression: String(ex.progression || ''),
+        why: String(ex.why || ''),
+        cautions: String(ex.cautions || ''),
       });
 
-      const days = [];
-      WEEKDAYS.forEach((wd, offset) => {
-        if (byDay[wd] && byDay[wd].length) {
-          const date = addDays(weekStart, offset);
-          days.push({
-            date,
-            type: 'strength',
-            title: dayTitles[wd] || `Strength — ${wd}`,
-            exercises: byDay[wd],
-          });
-        }
-      });
-      if (unassigned.length) {
-        days.push({
-          date: weekStart,
-          type: 'strength',
-          title: dayTitles[UNASSIGNED] || 'This Week',
-          exercises: unassigned,
+      // Bucket exercises onto dates per their frequency, then group by date.
+      const byDate = {};   // iso date -> exercises[]
+      const dateWeekday = {}; // iso date -> weekday name ('' for Unassigned-origin)
+      exercises.forEach((ex) => {
+        const e = toExport(ex);
+        if (!e.name) return; // skip blank cards
+        const day = normalizeDay(ex.day);
+        const assignedDate = day ? addDays(weekStart, WEEKDAYS.indexOf(day)) : weekStart;
+        const dates = frequencyDates(ex.frequency, weekStart, assignedDate);
+        dates.forEach((date) => {
+          (byDate[date] = byDate[date] || []).push(e);
+          // Remember the weekday that owns this date for title defaults.
+          if (!(date in dateWeekday)) {
+            const offset = Math.round((fmtDate(date) - fmtDate(weekStart)) / 86400000);
+            dateWeekday[date] = (offset >= 0 && offset <= 6 && day) ? WEEKDAYS[offset] : (day ? day : '');
+          }
         });
-      }
+      });
+
+      const days = Object.keys(byDate).map((date) => {
+        const offset = Math.round((fmtDate(date) - fmtDate(weekStart)) / 86400000);
+        const wd = (offset >= 0 && offset <= 6) ? WEEKDAYS[offset] : '';
+        const isUnassignedOrigin = !dateWeekday[date];
+        const title = isUnassignedOrigin
+          ? (dayTitles[UNASSIGNED] || 'This Week')
+          : (dayTitles[wd] || (wd ? `Strength — ${wd}` : 'This Week'));
+        return { date, type: 'strength', title, exercises: byDate[date] };
+      });
       days.sort((a, b) => a.date.localeCompare(b.date));
       return {
         days,
-        meta: { generatedBy: 'coach-mode', generatedAt: new Date().toISOString(), weekStart },
+        meta: { generatedBy: 'coach-mode', generatedAt: new Date().toISOString(), weekStart, phase: String(phase || '') },
       };
     }
     // Holds per-day editable titles, keyed by weekday name (and UNASSIGNED). Module-scope
@@ -779,6 +973,39 @@
                   {meta.range ? ` · ${meta.range}` : ''}
                 </p>
               )}
+
+              {/* Adherence + recent feedback (#3) */}
+              {meta && (meta.adherence != null || (meta.recentFeedback && meta.recentFeedback.length)) && (
+                <div className="border-2 border-[#1c2942] bg-[#e8e4d9] px-3 py-2.5 space-y-2">
+                  {meta.adherence != null && (
+                    <div className="flex items-baseline gap-2">
+                      <span className="label-mono text-[#0a0a0a]/50">— Adherence —</span>
+                      <span className="text-xl font-bold leading-none" style={{ fontFamily: '"Anton", sans-serif' }}>{meta.adherence}%</span>
+                      <span className="text-[11px] text-[#0a0a0a]/50">
+                        {meta.sessionsWithStatus > 0
+                          ? `${meta.sessionsCompleted}/${meta.sessionsWithStatus} sessions`
+                          : `${meta.exercisesDone}/${meta.exercisesPrescribed} exercises`}
+                      </span>
+                    </div>
+                  )}
+                  {meta.recentFeedback && meta.recentFeedback.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="label-mono text-[#0a0a0a]/50">— Recent feedback —</p>
+                      <ul className="space-y-1">
+                        {meta.recentFeedback.map((f, i) => (
+                          <li key={i} className="text-xs leading-snug text-[#0a0a0a]/80">
+                            {f.date && <span className="font-mono text-[#0a0a0a]/45">{f.date} · </span>}
+                            {f.feedback}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {meta.oftenSkipped && meta.oftenSkipped.length > 0 && (
+                    <p className="text-[11px] text-[#c8202b] leading-snug">Often skipped: {meta.oftenSkipped.slice(0, 5).join(', ')}</p>
+                  )}
+                </div>
+              )}
               {records.length === 0 && (
                 <p className="text-sm text-[#0a0a0a]/50 py-4 text-center">No movements in the imported history.</p>
               )}
@@ -788,8 +1015,9 @@
                   <div key={(rec.name || '') + i} className="border-2 border-[#0a0a0a] bg-[#f5f3ee]">
                     <div className="px-3 py-2 bg-[#4a3528] text-[#f5f3ee] border-b-2 border-[#0a0a0a] flex items-baseline gap-2">
                       <span className="flex-1 font-semibold leading-tight">{rec.name}</span>
-                      <span className="label-mono opacity-70 whitespace-nowrap">
+                      <span className="label-mono opacity-70 whitespace-nowrap text-right">
                         trained {rec.timesSeen}×{rec.lastDate ? ` · last ${rec.lastDate}` : ''}
+                        {(rec.doneCount != null) ? <><br/>done {rec.doneCount}/{rec.timesSeen}{rec.lastDoneDate ? ` · last ${rec.lastDoneDate}` : ''}</> : null}
                       </span>
                     </div>
                     <div className="p-3 space-y-2">
@@ -806,6 +1034,9 @@
                         </ul>
                       ) : (
                         <p className="text-xs text-[#0a0a0a]/40">No cues recorded.</p>
+                      )}
+                      {rec.lastFeedback && (
+                        <p className="text-xs leading-snug text-[#0a0a0a]/70 border-l-2 border-[#1c2942]/40 pl-2">“{rec.lastFeedback}”</p>
                       )}
                       {rec.video && (
                         <a href={rec.video} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 label-mono text-[#c8202b] active:scale-95 transition">
@@ -831,6 +1062,8 @@
       // Athlete context / anchor — injuries, level, goals, equipment. Tailors the
       // generated coaching cues. Persisted so the coach doesn't retype it weekly.
       const [context, setContext] = useState(() => { try { return localStorage.getItem('coach_athlete_context') || ''; } catch (_) { return ''; } });
+      // Rehab phase (#5) — prepended to the parse context + carried into export meta.
+      const [phase, setPhase] = useState(() => { try { return localStorage.getItem('coach_rehab_phase') || ''; } catch (_) { return ''; } });
       // Imported athlete history: per-movement curated cues/image/video, persisted.
       const [historyByName, setHistoryByName] = useState(() => {
         try { const raw = localStorage.getItem(HISTORY_KEY); if (raw) { const p = JSON.parse(raw); return (p && p.byName) || {}; } } catch (_) {}
@@ -857,6 +1090,7 @@
       // keep module-level dayTitles in sync for buildExport
       useEffect(() => { dayTitles = titles; }, [titles]);
       useEffect(() => { try { localStorage.setItem('coach_athlete_context', context); } catch (_) {} }, [context]);
+      useEffect(() => { try { localStorage.setItem('coach_rehab_phase', phase); } catch (_) {} }, [phase]);
 
       // Import the athlete's "Full JSON backup": parse, extract per-movement
       // history, store in state + localStorage so it survives reloads.
@@ -929,6 +1163,45 @@
         'push day - incline db press 4x10, lateral raise 3x15, tricep pushdown 3x12',
       ];
 
+      // ---- Protocol templates (#4) — short, editable physio starting points ----
+      const templates = [
+        {
+          label: 'Achilles tendinopathy (HSR)',
+          phase: 'Load tolerance',
+          context: 'Mid-portion Achilles tendinopathy, pain settling; goal: rebuild tendon load tolerance.',
+          text: 'Mon: Heavy slow calf raise 4x6 tempo 3-0-3, Seated calf raise 4x8 tempo 3-0-3, Single-leg balance 3x30s\nThu: Heavy slow calf raise 4x6 tempo 3-0-3, Eccentric heel drop 3x12, Hop progression 3x10',
+        },
+        {
+          label: 'Patellofemoral pain',
+          phase: 'Load tolerance',
+          context: 'Anterior knee pain with stairs/squats; goal: quad/hip strength, settle PFP.',
+          text: 'Mon: Spanish squat 4x10 tempo 3-0-1, Leg press 3x12, Side-lying hip abduction 3x15 each\nThu: Step-down 3x10 each leg, Wall sit 3x40s, Glute bridge 3x15',
+        },
+        {
+          label: 'Rotator cuff / shoulder',
+          phase: 'Acute / protect',
+          context: 'Rotator cuff related shoulder pain; goal: restore cuff control, pain-free range.',
+          text: 'Daily: Isometric external rotation 5x30s, Scapular setting 3x10\nMon: Banded external rotation 3x15, Banded internal rotation 3x15, Scaption raise 3x12',
+        },
+        {
+          label: 'ACL — early strength',
+          phase: 'Load tolerance',
+          context: 'Post ACL reconstruction, early strength phase; goal: quad activation, single-leg control.',
+          text: 'Mon: Leg press 4x10, Hamstring curl 3x12, Single-leg balance 3x30s, Heel raise 3x15\nThu: Spanish squat 3x12, Step-up 3x10 each leg, Terminal knee extension 3x15',
+        },
+        {
+          label: 'Low back',
+          phase: 'Load tolerance',
+          context: 'Non-specific low back pain, settling; goal: build trunk and hip tolerance.',
+          text: 'Mon: Hip hinge / RDL 3x10 tempo 3-0-1, Bird dog 3x8 each, Dead bug 3x10, Side plank 3x30s each\nThu: Goblet squat 3x10, Glute bridge 3x15, McGill curl-up 3x8',
+        },
+      ];
+      const applyTemplate = (tpl) => {
+        setText(tpl.text);
+        if (tpl.phase) setPhase(tpl.phase);
+        if (tpl.context) setContext((c) => (c && c.trim()) ? c : tpl.context);
+      };
+
       const process = async () => {
         const t = text.trim();
         if (!t) { setError('Type what the athlete should do first.'); return; }
@@ -943,7 +1216,26 @@
           const historyContextString = historyCueLines.length
             ? `The athlete has trained these movements before, with these established coaching cues. Reuse consistent cueing for the same movement where appropriate:\n${historyCueLines.join('\n')}`
             : '';
-          const combinedContext = [context.trim(), historyContextString].filter(Boolean).join('\n\n');
+
+          // Rehab phase line (#5).
+          const phaseLine = phase ? `Rehab phase: ${phase}` : '';
+
+          // Athlete-response summary (#3): adherence, last few feedback notes,
+          // and movements often skipped — so new cues/pain-rules/progressions can
+          // reference how the athlete has actually been responding.
+          let athleteResponseString = '';
+          if (historyMeta) {
+            const parts = [];
+            if (historyMeta.adherence != null) parts.push(`Adherence: ${historyMeta.adherence}%`);
+            const fb = (historyMeta.recentFeedback || []).slice(0, 3)
+              .map((f) => f && f.feedback ? (f.date ? `${f.date}: ${f.feedback}` : f.feedback) : '')
+              .filter(Boolean);
+            if (fb.length) parts.push(`Recent feedback — ${fb.join(' | ')}`);
+            if (historyMeta.oftenSkipped && historyMeta.oftenSkipped.length) parts.push(`Often skipped: ${historyMeta.oftenSkipped.slice(0, 5).join(', ')}`);
+            if (parts.length) athleteResponseString = `How the athlete has been responding (use this to tune cues, pain rules and progressions):\n${parts.join('\n')}`;
+          }
+
+          const combinedContext = [phaseLine, context.trim(), historyContextString, athleteResponseString].filter(Boolean).join('\n\n');
           const res = await fetch('/api/parse', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-coach-pass': pass },
