@@ -21,7 +21,7 @@ def emoji(ch,px):
 # (role, text)  roles: i=instr gray, l=label amber bold, j=json mint, b=bullet
 P=[
  ("i","Make me a beginner general-fitness plan as JSON"),
- ("i","for the RE/RΔN app. Output ONLY valid JSON —"),
+ ("i","for the REPCO app. Output ONLY valid JSON —"),
  ("i","no extra text."),
  ("g",""),
  ("i","About me: pretty sedentary, easing back in. I"),
