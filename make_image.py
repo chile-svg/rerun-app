@@ -43,7 +43,7 @@ y=PAD*S
 d.rectangle([0,0,W*S,14*S],fill=ACCENT)
 
 # tag
-d.text((PAD*S,y),"RE / RΔN  ·  YOUR POCKET COACH",font=F('tag'),fill=ACCENT); y+=44*S
+d.text((PAD*S,y),"REPCO  ·  YOUR POCKET COACH",font=F('tag'),fill=ACCENT); y+=44*S
 # title
 fT=F('title')
 d.text((PAD*S,y),"Let's get you",font=fT,fill=INK); y+=70*S

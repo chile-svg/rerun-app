@@ -61,7 +61,8 @@ def card(path, kicker, heading, subtitle, bullets, emo, tone, page):
         y+=20*S
     # footer
     d.rectangle([0,(W-14)*S,W*S,W*S],fill=EMERALD)
-    d.text((PAD*S,(W-58)*S),"RE / RΔN",font=f_brand,fill=INK)
+    d.text((PAD*S,(W-58)*S),"REPC",font=f_brand,fill=INK)
+    d.text((PAD*S+tw("REPC",f_brand),(W-58)*S),"O",font=f_brand,fill=(200,32,43))
     pg=page
     d.text(((W-PAD)*S-tw(pg,f_pg),(W-58)*S),pg,font=f_pg,fill=MUTED)
     img=img.resize((W,W),Image.LANCZOS); img.save(path);
@@ -70,7 +71,7 @@ os.makedirs("pitch",exist_ok=True)
 
 physio=[
  ("For physios","Get your rehab actually done.",
-  "RE/RΔN — a phone app that turns your prescription into a daily, visual checklist your patient will actually open.",
+  "REPCO — a phone app that turns your prescription into a daily, visual checklist your patient will actually open.",
   ["Built for runners juggling rehab, strength and mileage",
    "You write the plan; they follow it on their phone",
    "Early prototype — I want your expert eyes on it"],"🩹","ok"),
@@ -104,7 +105,7 @@ physio=[
 
 runner=[
  ("For runners","Runs and rehab, one place.",
-  "RE/RΔN — your whole training block as a daily, tap-through checklist on your phone.",
+  "REPCO — your whole training block as a daily, tap-through checklist on your phone.",
   ["Runs, strength and the rehab you keep skipping — together",
    "Plans written by AI (or your coach); you just follow",
    "Early prototype — I want your honest take"],"🏃","ok"),
