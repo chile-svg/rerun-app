@@ -1,7 +1,7 @@
 {
   "name": "rerun-app",
   "version": "1.0.0",
-  "description": "RE/RΔN — personal running & rehab training app",
+  "description": "REPCO — shared training & rehab app for physios and athletes",
   "private": true,
   "scripts": {
     "start": "node server.js"
