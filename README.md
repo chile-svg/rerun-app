@@ -1,6 +1,6 @@
-# RE/RΔN — Training App
+# REPCO — Train & Rehab
 
-A self-contained running & rehab training app. Single-page, installable as a PWA, data stored locally in the browser.
+Close the loop, together — a self-contained training & rehab app for physios and athletes. Single-page, installable as a PWA, data stored locally in the browser.
 
 ---
 
@@ -46,7 +46,7 @@ git push -u origin main
 5. Service → **Settings** → **Networking** → **Generate Domain**
 6. You get a URL like `rerun-app-production.up.railway.app`
 
-Open it on your phone → browser menu → **Add to Home Screen**. It installs with the RE/RΔN icon and opens full-screen like a native app.
+Open it on your phone → browser menu → **Add to Home Screen**. It installs with the REPCO icon and opens full-screen like a native app.
 
 > The app used to be served as pure static files. It now runs through a tiny Express server (`server.js`) so coach mode has a backend, but the athlete app is still the same single-page experience.
 

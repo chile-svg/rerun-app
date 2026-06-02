@@ -1,7 +1,7 @@
 {
-  "name": "RE/RΔN — Training",
-  "short_name": "RE/RΔN",
-  "description": "Personal running & rehab training app",
+  "name": "REPCO — Train & Rehab",
+  "short_name": "REPCO",
+  "description": "Close the loop, together — a shared training & rehab app for physios and athletes.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

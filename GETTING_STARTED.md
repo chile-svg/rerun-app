@@ -1,6 +1,6 @@
-# RE/RΔN — Getting Started 🏃‍♀️
+# REPCO — Getting Started 🏃‍♀️
 
-Welcome! This is a personal running & rehab training app. It lives in your browser, stores everything **locally on your device**, and can be installed to your phone's home screen like a real app.
+Welcome! REPCO is a training & rehab app — close the loop, together. It lives in your browser, stores everything **locally on your device**, and can be installed to your phone's home screen like a real app.
 
 You don't build anything or write code. The workflow is simple:
 
@@ -20,7 +20,7 @@ To install it like a native app:
 - **iPhone (Safari):** Share button → **Add to Home Screen**
 - **Android (Chrome):** menu (⋮) → **Add to Home Screen / Install app**
 
-It opens full-screen with the RE/RΔN icon. Your data stays on your phone.
+It opens full-screen with the REPCO icon. Your data stays on your phone.
 
 ---
 
@@ -32,7 +32,7 @@ Open your favorite AI chatbot and paste the prompt below. **Edit the top part** 
 <summary><b>👉 Copy-paste prompt for your LLM</b></summary>
 
 ```
-You are writing a training plan for the RE/RΔN running app.
+You are writing a training plan for the REPCO training app.
 Output ONLY valid JSON — no commentary, no markdown fences.
 
 MY REQUEST:
