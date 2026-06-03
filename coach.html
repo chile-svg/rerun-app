@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#f5f3ee" />
   <title>REPCO — Coach Mode</title>
 
@@ -39,6 +39,16 @@
       padding-right: env(safe-area-inset-right);
     }
     button, .no-select { user-select: none; -webkit-user-select: none; }
+
+    /* --- Render consistently across device font-size & zoom settings --- */
+    html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+    body { overflow-x: hidden; overflow-wrap: break-word; }
+    img, video { max-width: 100%; height: auto; }
+    /* Keep form controls >= 16px on touch so iOS doesn't auto-zoom on focus
+       (.ci is a class, so it must be named here to win the cascade). */
+    @media (pointer: coarse) {
+      input, select, textarea, .ci { font-size: 16px; }
+    }
 
     #boot {
       position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;

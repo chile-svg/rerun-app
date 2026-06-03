@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#f5f3ee" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -45,6 +45,19 @@
       padding-right: env(safe-area-inset-right);
     }
     button, .no-select { user-select: none; -webkit-user-select: none; }
+
+    /* --- Render consistently across device font-size & zoom settings --- */
+    /* Honor explicit user font scaling / pinch-zoom, but stop the browser
+       from auto-inflating arbitrary text (which makes app UIs look broken). */
+    html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+    /* Long unbreakable strings (exercise names, URLs) wrap instead of
+       forcing horizontal scroll when text or zoom grows. */
+    body { overflow-x: hidden; overflow-wrap: break-word; }
+    img, video { max-width: 100%; height: auto; }
+    /* Keep form controls >= 16px on touch so iOS doesn't auto-zoom on focus. */
+    @media (pointer: coarse) {
+      input, select, textarea { font-size: 16px; }
+    }
 
     /* Loading splash while Babel compiles — Bandit themed */
     #boot {
